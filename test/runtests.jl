@@ -7,9 +7,18 @@ using Test
         include("hamiltonianmodels.jl")
     end
 
+    @testset "exampletensors" begin
+        println("exampletensors tests running...")
+        include("exampletensors.jl")
+    end
+
+    @testset "autodiff" begin
+        println("autodiff tests running...")
+        include("autodiff.jl")
+    end
+
     @testset "bcipeps" begin
         println("bcipeps tests running...")
         include("bcipeps.jl")
     end
-    
 end

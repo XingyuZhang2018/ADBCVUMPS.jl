@@ -8,6 +8,7 @@ using ChainRulesCore
 using Random
 using OMEinsum
 using LinearAlgebra
+using Random
 
 @testset "autodiff" begin
     a = randn(10, 10)
@@ -40,7 +41,7 @@ end
     test_rrule(lqpos, rand(10, 10))
 end
 
-@testset "leftenv and rightenv" for Ni in [2], Nj in [2]
+@testset "$(Ni)x$(Nj) leftenv and rightenv" for Ni in [2], Nj in [2]
     Random.seed!(50)
     D, d = 3, 2
     A = Array{Array,2}(undef, Ni, Nj)
@@ -64,6 +65,6 @@ end
         return s
         # return norm(norm(m))
     end 
-    @show num_grad(foo2, 1)
+    # @show num_grad(foo2, 1)
     @test isapprox(Zygote.gradient(foo2, 1)[1], num_grad(foo2, 1), atol=1e-9)
 end

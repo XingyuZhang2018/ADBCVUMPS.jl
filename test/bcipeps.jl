@@ -3,7 +3,7 @@ using ADBCVUMPS
 using ADBCVUMPS:indexperm_symmetrize
 using LinearAlgebra
 
-@testset "bcipeps" for Nj = 1:3, Ni = 1:3
+@testset "$(Ni)x$(Nj) bcipeps" for Nj = 1:3, Ni = 1:3
     bcipeps = Array{Array,2}(undef, Ni, Nj)
     for j = 1:Nj, i = 1:Ni
         bcipeps[i,j] = rand(3,3,3,3,2)
