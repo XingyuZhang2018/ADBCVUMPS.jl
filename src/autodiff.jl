@@ -1,7 +1,7 @@
 using ChainRulesCore
 using LinearAlgebra
 using KrylovKit
-using BCVUMPS:qrpos,lqpos,leftenv!,rightenv!,FLmap,FRmap
+using BCVUMPS:qrpos,lqpos,leftenv!,rightenv!,FLmap,FRmap,ACenv!,Cenv!,ACmap,Cmap
 
 @Zygote.nograd BCVUMPS.StopFunction
 @Zygote.nograd BCVUMPS.leftorth
@@ -32,7 +32,7 @@ end
 function ChainRulesCore.rrule(::typeof(CopyM), M, Ni, Nj)
     function back(dm)
         dM = zeros(size(dm[1,1]))
-        for j in 1:Nj, i in 1:Ni
+        for j = 1:Nj, i = 1:Ni
             dM += dm[i,j]
         end
         return NO_FIELDS, dM, NO_FIELDS, NO_FIELDS
@@ -75,19 +75,19 @@ Aip means Aᵢ₊₁
                │     │              │                │ 
 dMᵢⱼ₊J   =    Lᵢⱼ ─ Mᵢⱼ  ── ... ──     ──     ...  ──Rᵢⱼ
                │     │              │                │ 
-               ┕──  Aᵢ₊₁ⱼ  ─... ── Aᵢ₊₁ⱼ₊J  ──...  ──┘ 
+               └──  Aᵢ₊₁ⱼ  ─... ── Aᵢ₊₁ⱼ₊J  ──...  ──┘ 
 
                ┌──  Aᵢⱼ  ── ... ──     ────── ...  ──┐ 
                │     │              │                │ 
 dAᵢⱼ₊J   =    Lᵢⱼ ─ Mᵢⱼ  ── ... ── dMᵢⱼ₊J  ── ...  ──Rᵢⱼ
                │     │              │                │ 
-               ┕──  Aᵢ₊₁ⱼ  ─... ── Aᵢ₊₁ⱼ₊J  ──...  ──┘ 
+               └──  Aᵢ₊₁ⱼ  ─... ── Aᵢ₊₁ⱼ₊J  ──...  ──┘ 
 
                ┌──  Aᵢⱼ  ── ... ── Aᵢⱼ₊J  ──  ...  ──┐ 
                │     │              │                │ 
 Aᵢ₊₁ⱼ₊J   =   Lᵢⱼ ─ Mᵢⱼ  ── ... ── dMᵢⱼ₊J  ── ...  ──Rᵢⱼ
                │     │              │                │ 
-               ┕──  Aᵢ₊₁ⱼ  ─... ──     ───────...  ──┘ 
+               └──  Aᵢ₊₁ⱼ  ─... ──     ───────...  ──┘ 
 
 ```
 """
@@ -100,7 +100,7 @@ function dAMmap(Ai, Aip, Mi, L, R, j, J)
         L = ein"abc,cde,bfhd,afg -> ghe"(L, Ai[jr], Mi[jr], conj(Aip[jr]))
     end
     for jj = 1:NR
-        jr = j + Nj - jj - (j + Nj - jj > Nj) * Nj
+        jr = j - jj + (j - jj < 1) * Nj
         R = ein"abc,eda,hfbd,gfc -> ehg"(R, Ai[jr], Mi[jr], conj(Aip[jr]))
     end
     dAiJ = -ein"γcη,csap,γsα,βaα -> ηpβ"(L, Mi[J], conj(Aip[J]), R)
@@ -116,7 +116,7 @@ function ChainRulesCore.rrule(::typeof(leftenv!), AL, M, FL; kwargs...)
     function back((dλ, dFL))
         dAL = fill!(similar(AL, Array), zeros(size(AL[1,1])))
         dM = fill!(similar(M, Array), zeros(size(M[1,1])))
-        for j in 1:Nj, i in 1:Ni
+        for j = 1:Nj, i = 1:Ni
             ir = i + 1 - Ni * (i == Ni)
             jr = j - 1 + Nj * (j == 1)
             ξl = rand(T, size(FL[i,j]))
@@ -142,7 +142,7 @@ function ChainRulesCore.rrule(::typeof(rightenv!), AR, M, FR; kwargs...)
     function back((dλ, dFR))
         dAR = fill!(similar(AR, Array), zeros(size(AR[1,1])))
         dM = fill!(similar(M, Array), zeros(size(M[1,1])))
-        for j in 1:Nj, i in 1:Ni
+        for j = 1:Nj, i = 1:Ni
             ir = i + 1 - Ni * (i == Ni)
             jr = j - 1 + Nj * (j == 1)
             ξr = rand(T, size(FR[i,j]))
@@ -159,6 +159,115 @@ function ChainRulesCore.rrule(::typeof(rightenv!), AR, M, FR; kwargs...)
         return NO_FIELDS, dAR, dM, NO_FIELDS...
     end
     return (λR, FR), back
+end
+
+"""
+    ACdmap(ACij, FLj, FRj, Mj, II)
+
+```
+.        .         .
+.        .         .
+.        .         .
+│        │         │          
+FLᵢ₋₁ⱼ ─ Mᵢ₋₁ⱼ ──  FRᵢ₋₁ⱼ
+│        │         │   
+FLᵢⱼ ─── Mᵢⱼ ───── FRᵢⱼ
+│        │         │    
+└─────── ACᵢⱼ ─────┘
+```
+"""
+function ACdmap(ACij, FLj, FRj, Mj, II)
+    Ni = size(FLj,1)
+    for i=1:Ni
+        ir = II-(i-1) + (II-(i-1) < 1)*Ni
+        ACij = ein"αaγ,αsβ,asbp,ηbβ -> γpη"(FLj[ir],ACij,Mj[ir],FRj[ir])
+    end
+    return ACij
+end
+
+"""
+    ACdFMmap(FLj, Mi, FRj, AC, ACd, i, II)
+
+```
+               ┌─────  ACᵢⱼ ─────┐ 
+               │        │        │ 
+              FLᵢⱼ ─── Mᵢⱼ  ─── FRᵢⱼ
+               │        │        │ 
+               ⋮         ⋮        ⋮
+               │        │        │
+dMᵢ₊Iⱼ   =    FLᵢ₊Iⱼ ─     ───  FRᵢ₊Iⱼ 
+               │        │        │
+               ⋮         ⋮        ⋮
+               │        │        │             
+               └─────  ACdᵢⱼ ────┘ 
+
+               ┌─────  ACᵢⱼ ─────┐ 
+               │        │        │ 
+              FLᵢⱼ ─── Mᵢⱼ  ─── FRᵢⱼ
+               │        │        │ 
+               ⋮         ⋮        ⋮
+               │        │        │
+dFLᵢ₊Iⱼ  =       ───── Mᵢ₊Iⱼ ─  FRᵢ₊Iⱼ 
+               │        │        │
+               ⋮         ⋮        ⋮
+               │        │        │             
+               └─────  ACdᵢⱼ ────┘ 
+
+               ┌─────  ACᵢⱼ ─────┐ 
+               │        │        │ 
+              FLᵢⱼ ─── Mᵢⱼ  ─── FRᵢⱼ
+               │        │        │ 
+               ⋮         ⋮        ⋮
+               │        │        │
+dFRᵢ₊Iⱼ  =    FLᵢ₊Iⱼ ─ Mᵢ₊Iⱼ ─  
+               │        │        │
+               ⋮         ⋮        ⋮
+               │        │        │             
+               └─────  ACdᵢⱼ ────┘ 
+```
+"""
+function ACdFMmap(FLj, Mj, FRj, AC, ACd, i, II)
+    Ni = size(FLj, 1)
+    Nu = (II - i + (II - i < 0) * Ni)
+    Nd = Ni - Nu - 1
+    for ii = 1:Nu
+        ir = i + ii - 1 - (i + ii - 1 > Ni) * Ni
+        AC = ein"abc,cde,bhfd,efg -> ahg"(FLj[ir], AC, Mj[ir], FRj[ir])
+    end
+    for ii = 1:Nd
+        ir = i - ii + (i - ii < 1) * Ni
+        ACd = ein"αaγ,αsβ,asbp,ηbβ -> γpη"(FLj[ir], ACd, Mj[ir], FRj[ir])
+    end
+    dFLIj = -ein"ηpβ,βaα,csap,γsα -> ηcγ"(AC, FRj[II], Mj[II], ACd)
+    dMIj = -ein"γcη,ηpβ,γsα,βaα -> csap"(FLj[II], AC, ACd, FRj[II])
+    dFRIj = -ein"ηpβ,γcη,csap,γsα -> αaβ"(AC, FLj[II], Mj[II], ACd)
+    return dFLIj, dMIj, dFRIj
+end
+
+function ChainRulesCore.rrule(::typeof(ACenv!), AC, FL, M, FR; kwargs...)
+    λAC, AC = ACenv!(AC, FL, M, FR; kwargs...)
+    Ni, Nj = size(AC)
+    T = eltype(AC[1,1])
+    function back((dλ, dAC))
+        dFL = fill!(similar(FL, Array), zeros(size(FL[1,1])))
+        dM = fill!(similar(M, Array), zeros(size(M[1,1])))
+        dFR = fill!(similar(FR, Array), zeros(size(FR[1,1])))
+        for j = 1:Nj, i = 1:Ni
+            ir = i - 1 + Ni * (i == 1)
+            ξAC = rand(T, size(AC[i,j]))
+            ξAC = ACdmap(ξAC, FL[:,j], FR[:,j], M[:,j], ir) - λAC[i,j] .* ξAC
+            ξAC, info = linsolve(ACd -> ACdmap(ACd, FL[:,j], FR[:,j], M[:,j], ir), dAC[i,j], ξAC, -λAC[i,j], 1; kwargs...)
+            for II = 1:Ni
+                dFLIj, dMIj, dFRIj = ACdFMmap(FL[:,j], M[:,j], FR[:,j], AC[i,j], ξAC, i, II)
+                dFL[II,j] += dFLIj
+                dM[II,j] += dMIj
+                dFR[II,j] += dFRIj
+            end
+            # @show info ein"abc,abc ->"(AC[i,j], ξAC)[] ein"abc,abc -> "(AC[i,j], dAC[i,j])[]
+        end
+        return NO_FIELDS, NO_FIELDS, dFL, dM, dFR...
+    end
+    return (λAC, AC), back
 end
 
 @doc raw"

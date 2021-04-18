@@ -1,6 +1,6 @@
 using ADBCVUMPS
 using ADBCVUMPS:num_grad,model_tensor
-using BCVUMPS:qrpos,lqpos,leftorth,leftenv!,rightorth,rightenv!,FLmap,Ising
+using BCVUMPS:qrpos,lqpos,leftorth,leftenv!,rightorth,rightenv!,FLmap,Ising,ACenv!,Cenv!
 using Test
 using Zygote
 using ChainRulesTestUtils
@@ -10,11 +10,13 @@ using OMEinsum
 using LinearAlgebra
 using Random
 
-@testset "autodiff" begin
+@testset "matrix autodiff" begin
     a = randn(10, 10)
     @test Zygote.gradient(norm, a)[1] ≈ num_grad(norm, a)
 
-    foo1 = x -> sum(Float64[x 2x; 3x 4x])
+    function foo1(x) 
+        sum(Float64[x 2x; 3x 4x])
+    end
     a = Float64[1 2; 3 4]
 
     @test Zygote.gradient(foo1, 1)[1] ≈ num_grad(foo1, 1)
@@ -70,6 +72,7 @@ end
         end
         return s
     end 
+    @test isapprox(Zygote.gradient(foo3, 1)[1], num_grad(foo3, 1), atol=1e-8)
 
     function foo4(β)
         M = model_tensor(Ising(Ni, Nj), β)
@@ -80,6 +83,59 @@ end
         end
         return s
     end 
-    @test isapprox(Zygote.gradient(foo3, 1)[1], num_grad(foo3, 1), atol=1e-8)
     @test isapprox(Zygote.gradient(foo4, 1)[1], num_grad(foo4, 1), atol=1e-8)
+end
+
+@testset "$(Ni)x$(Nj) ACenv and Cenv" for Ni in [2], Nj in [2]
+    Random.seed!(50)
+    D, d = 3, 2
+    A = Array{Array,2}(undef, Ni, Nj)
+    S1 = Array{Array,2}(undef, Ni, Nj)
+    S2 = Array{Array,2}(undef, Ni, Nj)
+    for j in 1:Nj, i in 1:Ni
+        A[i,j] = rand(D, d, D)
+        S1[i,j] = rand(D, d, D, D, d, D)
+        S2[i,j] = rand(D, D, D, D)
+    end
+
+    AL, L, _ = leftorth(A) 
+    R, AR, _ = rightorth(A)
+    M = model_tensor(Ising(Ni, Nj), 1.0)
+    _, FL = leftenv!(AL, M)
+    _, FR = rightenv!(AR, M)
+
+    C = Array{Array,2}(undef, Ni, Nj)
+    AC = Array{Array,2}(undef, Ni, Nj)
+    for j in 1:Nj,i in 1:Ni
+        jr = j + 1 - (j + 1 > Nj) * Nj
+        C[i,j] = L[i,j] * R[i,jr]
+        AC[i,j] = ein"asc,cb -> asb"(AL[i,j], C[i,j])
+    end
+
+    function foo1(β)
+        M = model_tensor(Ising(Ni, Nj), β)
+        λAC, AC = ACenv!(AC, FL, M, FR)
+        s = 0
+        for j in 1:Nj, i in 1:Ni
+            s += ein"γcη,ηcγαaβ,βaα -> "(AC[i,j], S1[i,j], AC[i,j])[] / ein"γcη,ηcγ -> "(AC[i,j], AC[i,j])[]
+        end
+        return s
+    end
+    @show num_grad(foo1, 1)
+    @test isapprox(Zygote.gradient(foo1, 1)[1], num_grad(foo1, 1), atol=1e-8)
+
+    function foo2(β)
+        M = model_tensor(Ising(Ni, Nj), β)
+        λC, C = Cenv!(C, FL, FR)
+        λL, FL = leftenv!(AL, M)
+        λR, FR = rightenv!(AR, M)
+        s = 0
+        for j in 1:Nj, i in 1:Ni
+            s += ein"γη,ηγαβ,βα -> "(C[i,j],S2[i,j],C[i,j])[]/ein"γη,ηγ -> "(C[i,j],C[i,j])[]
+        end
+        return s
+    end
+    @show num_grad(foo2, 1)
+    ##########   To do: Cenv! adjoint   ##########
+    # @test isapprox(Zygote.gradient(foo2, 1)[1], num_grad(foo2, 1), atol=1e-8)
 end
