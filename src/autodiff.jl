@@ -119,12 +119,8 @@ function ChainRulesCore.rrule(::typeof(leftenv!), AL, M, FL; kwargs...)
         for j = 1:Nj, i = 1:Ni
             ir = i + 1 - Ni * (i == Ni)
             jr = j - 1 + Nj * (j == 1)
-            ξl = rand(T, size(FL[i,j]))
-            while abs(ein"abc,cba ->"(FL[i,j], ξl)[]) > 1.e-12
-                ξl = FRmap(AL[i,:], AL[ir,:], M[i,:], ξl, jr) - λL[i,j] .* ξl
-                ξl, info = linsolve(FR -> FRmap(AL[i,:], AL[ir,:], M[i,:], FR, jr), permutedims(dFL[i,j], (3, 2, 1)), ξl, -λL[i,j], 1; kwargs...)
-                # @show info ein"abc,cba ->"(FL[i,j], ξl)[] ein"abc,abc -> "(FL[i,j], dFL[i,j])[]
-            end
+            ξl, info = linsolve(FR -> FRmap(AL[i,:], AL[ir,:], M[i,:], FR, jr), permutedims(dFL[i,j], (3, 2, 1)), -λL[i,j], 1; kwargs...)
+            # @show info ein"abc,cba ->"(FL[i,j], ξl)[] ein"abc,abc -> "(FL[i,j], dFL[i,j])[]
             for J = 1:Nj
                 dAiJ, dAipJ, dMiJ = dAMmap(AL[i,:], AL[ir,:], M[i,:], FL[i,j], ξl, j, J)
                 dAL[i,J] += dAiJ
@@ -147,12 +143,8 @@ function ChainRulesCore.rrule(::typeof(rightenv!), AR, M, FR; kwargs...)
         for j = 1:Nj, i = 1:Ni
             ir = i + 1 - Ni * (i == Ni)
             jr = j - 1 + Nj * (j == 1)
-            ξr = rand(T, size(FR[i,j]))
-            while abs(ein"abc,cba ->"(ξr, FR[i,jr])[]) > 1.e-12
-                ξr = FLmap(AR[i,:], AR[ir,:], M[i,:], ξr, j) - λR[i,jr] .* ξr
-                ξr, info = linsolve(FL -> FLmap(AR[i,:], AR[ir,:], M[i,:], FL, j), permutedims(dFR[i,jr], (3, 2, 1)), ξr, -λR[i,jr], 1; kwargs...)
-                # @show info ein"abc,cba ->"(ξr, FR[i,jr])[] ein"abc,abc -> "(FR[i,jr], dFR[i,jr])[]
-            end
+            ξr, info = linsolve(FL -> FLmap(AR[i,:], AR[ir,:], M[i,:], FL, j), permutedims(dFR[i,jr], (3, 2, 1)), -λR[i,jr], 1; kwargs...)
+            # @show info ein"abc,cba ->"(ξr, FR[i,jr])[] ein"abc,abc -> "(FR[i,jr], dFR[i,jr])[]
             for J = 1:Nj
                 dAiJ, dAipJ, dMiJ = dAMmap(AR[i,:], AR[ir,:], M[i,:], ξr, FR[i,jr], j, J)
                 dAR[i,J] += dAiJ
@@ -258,12 +250,8 @@ function ChainRulesCore.rrule(::typeof(ACenv!), AC, FL, M, FR; kwargs...)
         dFR = fill!(similar(FR, Array), zeros(size(FR[1,1])))
         for j = 1:Nj, i = 1:Ni
             ir = i - 1 + Ni * (i == 1)
-            ξAC = rand(T, size(AC[i,j]))
-            while abs(ein"abc,abc ->"(AC[i,j], ξAC)[]) > 1.e-12
-                ξAC = ACdmap(ξAC, FL[:,j], FR[:,j], M[:,j], ir) - λAC[i,j] .* ξAC
-                ξAC, info = linsolve(ACd -> ACdmap(ACd, FL[:,j], FR[:,j], M[:,j], ir), dAC[i,j], ξAC, -λAC[i,j], 1; kwargs...)
-                # @show info ein"abc,abc ->"(AC[i,j], ξAC)[] ein"abc,abc -> "(AC[i,j], dAC[i,j])[]
-            end
+            ξAC, info = linsolve(ACd -> ACdmap(ACd, FL[:,j], FR[:,j], M[:,j], ir), dAC[i,j], -λAC[i,j], 1; kwargs...)
+            # @show info ein"abc,abc ->"(AC[i,j], ξAC)[] ein"abc,abc -> "(AC[i,j], dAC[i,j])[]
             for II = 1:Ni
                 dFLIj, dMIj, dFRIj = ACdFMmap(FL[:,j], M[:,j], FR[:,j], AC[i,j], ξAC, i, II)
                 dFL[II,j] += dFLIj
@@ -356,12 +344,8 @@ function ChainRulesCore.rrule(::typeof(Cenv!), C, FL, FR; kwargs...)
         for j = 1:Nj, i = 1:Ni
             ir = i - 1 + Ni * (i == 1)
             jr = j + 1 - (j==Nj) * Nj
-            ξC = rand(T, size(C[i,j]))
-            while abs(ein"ab,ab ->"(C[i,j], ξC)[]) > 1.e-12
-                ξC = Cdmap(ξC, FL[:,jr], FR[:,j], ir) - λC[i,j] .* ξC
-                ξC, info = linsolve(Cd -> Cdmap(Cd, FL[:,jr], FR[:,j], ir), dC[i,j], ξC, -λC[i,j], 1; kwargs...)
-                # @show info ein"ab,ab ->"(C[i,j], ξC)[] ein"ab,ab -> "(C[i,j], dC[i,j])[]
-            end
+            ξC, info = linsolve(Cd -> Cdmap(Cd, FL[:,jr], FR[:,j], ir), dC[i,j], -λC[i,j], 1; kwargs...)
+            # @show info ein"ab,ab ->"(C[i,j], ξC)[] ein"ab,ab -> "(C[i,j], dC[i,j])[]
             for II = 1:Ni
                 dFLIjp, dFRIj = CdFMmap(FL[:,jr], FR[:,j], C[i,j], ξC, i, II)
                 dFL[II,jr] += dFLIjp

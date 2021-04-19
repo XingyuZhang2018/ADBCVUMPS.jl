@@ -87,7 +87,7 @@ end
 end
 
 @testset "$(Ni)x$(Nj) ACenv and Cenv" for Ni in [2,3], Nj in [2,3]
-    Random.seed!(100)
+    Random.seed!(50)
     D, d = 3, 2
     A = Array{Array,2}(undef, Ni, Nj)
     S1 = Array{Array,2}(undef, Ni, Nj)
@@ -134,6 +134,5 @@ end
         end
         return s
     end
-    # println(num_grad(foo2, 1))
-    @test isapprox(Zygote.gradient(foo2, 1)[1], num_grad(foo2, 1), atol=1e-5)
+    @test isapprox(Zygote.gradient(foo2, 1)[1], num_grad(foo2, 1), atol=1e-8)
 end
