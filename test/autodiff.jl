@@ -86,8 +86,8 @@ end
     @test isapprox(Zygote.gradient(foo4, 1)[1], num_grad(foo4, 1), atol=1e-8)
 end
 
-@testset "$(Ni)x$(Nj) ACenv and Cenv" for Ni in [2], Nj in [2]
-    Random.seed!(50)
+@testset "$(Ni)x$(Nj) ACenv and Cenv" for Ni in [2,3], Nj in [2,3]
+    Random.seed!(100)
     D, d = 3, 2
     A = Array{Array,2}(undef, Ni, Nj)
     S1 = Array{Array,2}(undef, Ni, Nj)
@@ -117,25 +117,23 @@ end
         λAC, AC = ACenv!(AC, FL, M, FR)
         s = 0
         for j in 1:Nj, i in 1:Ni
-            s += ein"γcη,ηcγαaβ,βaα -> "(AC[i,j], S1[i,j], AC[i,j])[] / ein"γcη,ηcγ -> "(AC[i,j], AC[i,j])[]
+            s += ein"γcη,ηcγαaβ,βaα -> "(AC[i,j], S1[i,j], AC[i,j])[] / ein"γcη,γcη -> "(AC[i,j], AC[i,j])[]
         end
         return s
     end
-    @show num_grad(foo1, 1)
     @test isapprox(Zygote.gradient(foo1, 1)[1], num_grad(foo1, 1), atol=1e-8)
 
     function foo2(β)
         M = model_tensor(Ising(Ni, Nj), β)
-        λC, C = Cenv!(C, FL, FR)
         λL, FL = leftenv!(AL, M)
         λR, FR = rightenv!(AR, M)
+        λC, C = Cenv!(C, FL, FR)
         s = 0
         for j in 1:Nj, i in 1:Ni
-            s += ein"γη,ηγαβ,βα -> "(C[i,j],S2[i,j],C[i,j])[]/ein"γη,ηγ -> "(C[i,j],C[i,j])[]
+            s += ein"γη,ηγαβ,βα -> "(C[i,j],S2[i,j],C[i,j])[]/ein"γη,γη -> "(C[i,j],C[i,j])[]
         end
         return s
     end
-    @show num_grad(foo2, 1)
-    ##########   To do: Cenv! adjoint   ##########
-    # @test isapprox(Zygote.gradient(foo2, 1)[1], num_grad(foo2, 1), atol=1e-8)
+    # println(num_grad(foo2, 1))
+    @test isapprox(Zygote.gradient(foo2, 1)[1], num_grad(foo2, 1), atol=1e-5)
 end
