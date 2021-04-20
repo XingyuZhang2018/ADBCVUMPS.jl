@@ -8,7 +8,6 @@ export Ising, TFIsing, Heisenberg
 export hamiltonian
 
 include("hamiltonianmodels.jl")
-include("exampletensors.jl")
 include("autodiff.jl")
 include("bcipeps.jl")
 

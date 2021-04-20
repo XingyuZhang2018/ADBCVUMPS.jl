@@ -9,6 +9,7 @@ using BCVUMPS:qrpos,lqpos,leftenv!,rightenv!,FLmap,FRmap,ACenv!,Cenv!,ACmap,Cmap
 @Zygote.nograd BCVUMPS.FLint
 @Zygote.nograd BCVUMPS.FRint
 @Zygote.nograd BCVUMPS._initializect_square
+@Zygote.nograd BCVUMPS.error
 
 # patch since it's currently broken otherwise
 function ChainRulesCore.rrule(::typeof(Base.typed_hvcat), ::Type{T}, rows::Tuple{Vararg{Int}}, xs::S...) where {T,S}
@@ -29,15 +30,13 @@ function ChainRulesCore.rrule(::typeof(LinearAlgebra.norm), A::AbstractArray)
     return n, back
 end
 
-function ChainRulesCore.rrule(::typeof(CopyM), M, Ni, Nj)
-    function back(dm)
-        dM = zeros(size(dm[1,1]))
-        for j = 1:Nj, i = 1:Ni
-            dM += dm[i,j]
-        end
-        return NO_FIELDS, dM, NO_FIELDS, NO_FIELDS
+function ChainRulesCore.rrule(::typeof(Base.sqrt), A::AbstractArray)
+    As = Base.sqrt(A)
+    function back(dAs)
+        dA =  (As^(-1))'./2 * dAs 
+        return NO_FIELDS, dA
     end
-    return CopyM(M, Ni, Nj), back
+    return As, back
 end
 
 # adjoint for QR factorization
@@ -234,9 +233,9 @@ function ACdFMmap(FLj, Mj, FRj, AC, ACd, i, II)
         ir = i - ii + (i - ii < 1) * Ni
         ACd = ein"αaγ,αsβ,asbp,ηbβ -> γpη"(FLj[ir], ACd, Mj[ir], FRj[ir])
     end
-    dFLIj = -ein"ηpβ,βaα,csap,γsα -> ηcγ"(AC, FRj[II], Mj[II], ACd)
+    dFLIj = -ein"ηpβ,βaα,csap,γsα -> γcη"(AC, FRj[II], Mj[II], ACd)
     dMIj = -ein"γcη,ηpβ,γsα,βaα -> csap"(FLj[II], AC, ACd, FRj[II])
-    dFRIj = -ein"ηpβ,γcη,csap,γsα -> αaβ"(AC, FLj[II], Mj[II], ACd)
+    dFRIj = -ein"ηpβ,γcη,csap,γsα -> βaα"(AC, FLj[II], Mj[II], ACd)
     return dFLIj, dMIj, dFRIj
 end
 
