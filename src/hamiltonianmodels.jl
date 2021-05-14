@@ -1,5 +1,3 @@
-abstract type HamiltonianModel end
-
 const σx = Float64[0 1; 1 0]
 const σy = ComplexF64[0 -1im; 1im 0]
 const σz = Float64[1 0; 0 -1]
@@ -11,8 +9,25 @@ const id2 = Float64[1 0; 0 1]
 return the hamiltonian of the `model` as a two-site tensor operator.
 "
 function hamiltonian end
+struct diaglocal{T<:Vector} <: HamiltonianModel 
+    Ni::Int
+    Nj::Int
+    diag::T
+end
 
-struct diaglocal <: HamiltonianModel end
+"""
+    diaglocal(diag::Vector)
+
+return the 2-site Hamiltonian with single-body terms given
+by the diagonal `diag`.
+"""
+function hamiltonian(model::diaglocal)
+    diag = model.diag
+    n = length(diag)
+    h = ein"i -> ii"(diag)
+    id = Matrix(I,n,n)
+    reshape(h,n,n,1,1) .* reshape(id,1,1,n,n) .+ reshape(h,1,1,n,n) .* reshape(id,n,n,1,1)
+end
 
 @doc raw"
     TFIsing(hx::Real)
@@ -20,6 +35,8 @@ struct diaglocal <: HamiltonianModel end
 return a struct representing the transverse field ising model with magnetisation `hx`.
 "
 struct TFIsing{T<:Real} <: HamiltonianModel
+    Ni::Int
+    Nj::Int
     hx::T
 end
 
@@ -43,11 +60,13 @@ return a struct representing the heisenberg model with magnetisation fields
 `Jz`, `Jx` and `Jy`..
 "
 struct Heisenberg{T<:Real} <: HamiltonianModel
+    Ni::Int
+    Nj::Int
     Jz::T
     Jx::T
     Jy::T
 end
-Heisenberg() = Heisenberg(1.0,1.0,1.0)
+Heisenberg(Ni,Nj) = Heisenberg(Ni,Nj,1.0,1.0,1.0)
 
 """
     hamiltonian(model::Heisenberg)

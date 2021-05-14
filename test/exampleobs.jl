@@ -6,7 +6,7 @@ using BCVUMPS:bcvumps_env,magnetisation,magofβ,energy,eneofβ,Z,Zofβ
 using Random
 using Zygote
 
-@testset "$(Ni)x$(Nj) ising" for Ni = [1,2,3], Nj = [1,2,3]
+@testset "$(Ni)x$(Nj) ising" for Ni = [1,2], Nj = [1,2]
     Random.seed!(100)
     model = Ising(Ni,Nj)
     β,D = 0.5, 10

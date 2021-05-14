@@ -107,7 +107,7 @@ end
     @test isapprox(Zygote.gradient(foo4, 1)[1], num_grad(foo4, 1), atol=1e-8)
 end
 
-@testset "$(Ni)x$(Nj) ACenv and Cenv" for Ni in [2,3], Nj in [2,3]
+@testset "$(Ni)x$(Nj) ACenv and Cenv" for Ni in [1,2,3], Nj in [1,2,3]
     Random.seed!(50)
     D, d = 3, 2
     A = Array{Array,2}(undef, Ni, Nj)
@@ -158,7 +158,7 @@ end
     @test isapprox(Zygote.gradient(foo2, 1)[1], num_grad(foo2, 1), atol=1e-8)
 end
 
-@testset "$(Ni)x$(Nj) ACCtoALAR" for Ni in [2,3], Nj in [2,3]
+@testset "$(Ni)x$(Nj) ACCtoALAR" for Ni in [1,2,3], Nj in [1,2,3]
     Random.seed!(10)
     D, d = 3, 2
     A = Array{Array,2}(undef, Ni, Nj)

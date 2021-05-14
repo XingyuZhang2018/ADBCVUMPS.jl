@@ -31,7 +31,7 @@ uuid = "56f22d72-fd6d-98f1-02f0-08ddc0907c33"
 
 [[BCVUMPS]]
 deps = ["FileIO", "IterTools", "JLD2", "KrylovKit", "LinearAlgebra", "OMEinsum", "Plots", "ProgressMeter", "Random", "Statistics"]
-git-tree-sha1 = "f2117fab6d45cd47d133696facdce00445f6d09c"
+git-tree-sha1 = "5f4c1a1b7766bef762ad1134a0c327f8c4c283da"
 repo-rev = "dev"
 repo-url = "https://github.com/XingyuZhang2018/BCVUMPS.jl#dev"
 uuid = "284ebded-cb5f-402a-b9c8-b6a334229127"
