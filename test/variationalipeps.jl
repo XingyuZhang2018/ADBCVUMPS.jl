@@ -1,11 +1,11 @@
 using Test
 using ADBCVUMPS
-using ADBCVUMPS: energy, num_grad, diaglocal, hamiltonian1
+using ADBCVUMPS: energy, num_grad, diaglocal
 using OMEinsum, Zygote, Random
 using Optim, LineSearches
 using LinearAlgebra: svd, norm
 
-@testset "non-interacting" for Ni = [1,2,3], Nj = [1,2,3]
+@testset "non-interacting" for Ni = [2], Nj = [2]
     Random.seed!(100)
     rd = randn()
     rd2 = randn(2,2,2,2,2)
@@ -40,82 +40,82 @@ using LinearAlgebra: svd, norm
 
     hdiag = [0.3,-0.43]
     model = diaglocal(Ni,Nj,hdiag)
-    ipeps, key = init_ipeps(model; D=2, χ=4, tol=1e-10, maxiter=20)
-    res = optimiseipeps(ipeps, key; f_tol = 1e-6)
+    bcipeps, key = init_ipeps(model; D=2, χ=4, tol=1e-10, maxiter=20)
+    res = optimiseipeps(bcipeps, key; f_tol = 1e-6)
     e = minimum(res)/2
     @test isapprox(e, minimum(hdiag), atol=1e-3)
 end
 
 @testset "gradient" for Ni = [2], Nj = [2]
     Random.seed!(0)
-    # model = TFIsing(Ni,Nj,1.0)
-    # h = hamiltonian(model)
-    # ipeps, key = init_ipeps(model; D=2, χ=4, tol=1e-10, maxiter=20)
-    # gradzygote = first(Zygote.gradient(ipeps) do x
-    #     energy(h,model,x; χ=4, tol=1e-10, maxiter=20)
-    # end).bulk
-    # gradnum = num_grad(ipeps.bulk, δ=1e-3) do x
-    #     energy(h,model,SquareBCIPEPS(x); χ=4, tol=1e-10, maxiter=20)
-    # end
-    # @test isapprox(gradzygote, gradnum, atol=1e-3)
+    model = TFIsing(Ni,Nj,1.0)
+    h = hamiltonian(model)
+    bcipeps, key = init_ipeps(model; D=2, χ=4, tol=1e-10, maxiter=20)
+    gradzygote = first(Zygote.gradient(bcipeps) do x
+        energy(h,model,x; χ=4, tol=1e-10, maxiter=20)
+    end).bulk
+    gradnum = num_grad(bcipeps.bulk, δ=1e-3) do x
+        energy(h,model,SquareBCIPEPS(x); χ=4, tol=1e-10, maxiter=20)
+    end
+    @test isapprox(gradzygote, gradnum, atol=1e-3)
 
     Random.seed!(3)
     model = Heisenberg(Ni,Nj)
     h = hamiltonian(model)
-    ipeps, key = init_ipeps(model; D=2, χ=20, tol=1e-12, maxiter=10)
-    gradzygote = first(Zygote.gradient(ipeps) do x
-        energy(h,model,x; χ=20, tol=1e-12, maxiter=10, verbose = true)
+    bcipeps, key = init_ipeps(model; D=2, χ=4, tol=1e-10, maxiter=20)
+    gradzygote = first(Zygote.gradient(bcipeps) do x
+        energy(h,model,x; χ=20, tol=1e-10, maxiter=20)
     end).bulk
-    # gradnum = num_grad(ipeps.bulk, δ=1e-3) do x
-    #     energy(h,model, SquareBCIPEPS(x); χ=4, tol=1e-10, maxiter=20)
-    # end
-    # @test isapprox(gradzygote , gradnum, atol=1e-3)
+    gradnum = num_grad(bcipeps.bulk, δ=1e-3) do x
+        energy(h,model, SquareBCIPEPS(x); χ=4, tol=1e-10, maxiter=20)
+    end
+    @test isapprox(gradzygote , gradnum, atol=1e-3)
 end
 
 @testset "TFIsing" for Ni = [2], Nj = [2]
     # comparison with results from https://github.com/wangleiphy/tensorgrad
     Random.seed!(3)
     model = TFIsing(Ni,Nj,1.0)
-    ipeps, key = init_ipeps(model; D=2, χ=20, tol=1e-10, maxiter=20)
-    res = optimiseipeps(ipeps, key; f_tol = 1e-6)
+    bcipeps, key = init_ipeps(model; D=2, χ=20, tol=1e-10, maxiter=20)
+    res = optimiseipeps(bcipeps, key; f_tol = 1e-6)
     e = minimum(res)
     @test isapprox(e, -2.12566, atol = 1e-2)
 
-    # Random.seed!(3)
-    # model = TFIsing(Ni,Nj,0.5)
-    # ipeps, key = init_ipeps(model; D=2, χ=20, tol=1e-10, maxiter=20)
-    # res = optimiseipeps(ipeps, key; f_tol = 1e-6)
-    # e = minimum(res)
-    # @test isapprox(e, -2.0312, atol = 1e-2)
+    Random.seed!(3)
+    model = TFIsing(Ni,Nj,0.5)
+    bcipeps, key = init_ipeps(model; D=2, χ=20, tol=1e-10, maxiter=20)
+    res = optimiseipeps(bcipeps, key; f_tol = 1e-6)
+    e = minimum(res)
+    @test isapprox(e, -2.0312, atol = 1e-2)
 
-    # Random.seed!(3)
-    # model = TFIsing(Ni,Nj,2.0)
-    # ipeps, key = init_ipeps(model; D=2, χ=20, tol=1e-10, maxiter=20)
-    # res = optimiseipeps(ipeps, key; f_tol = 1e-6)
-    # e = minimum(res)
-    # @test isapprox(e, -2.5113, atol = 1e-2)
+    Random.seed!(3)
+    model = TFIsing(Ni,Nj,2.0)
+    bcipeps, key = init_ipeps(model; D=2, χ=20, tol=1e-10, maxiter=20)
+    res = optimiseipeps(bcipeps, key; f_tol = 1e-6)
+    e = minimum(res)
+    @test isapprox(e, -2.5113, atol = 1e-2)
 end
 
 @testset "heisenberg" for Ni = [2], Nj = [2]
     # comparison with results from https://github.com/wangleiphy/tensorgrad
     Random.seed!(100)
-    # model = Heisenberg(Ni,Nj,1.0,1.0,1.0)
-    # ipeps, key = init_ipeps(model; D=2, χ=20, tol=1e-10, maxiter=20)
-    # res = optimiseipeps(ipeps, key; f_tol = 1e-6, verbose = true)
-    # e = minimum(res)
-    # @test isapprox(e, -0.66023, atol = 1e-4)
+    model = Heisenberg(Ni,Nj,1.0,1.0,1.0)
+    bcipeps, key = init_ipeps(model; D=2, χ=20, tol=1e-10, maxiter=20)
+    res = optimiseipeps(bcipeps, key; f_tol = 1e-6)
+    e = minimum(res)
+    @test isapprox(e, -0.66023, atol = 1e-4)
 
-    # Random.seed!(100)
-    # model = Heisenberg(Ni,Nj,1.0,2.0,2.0)
-    # ipeps, key = init_ipeps(model; D=2, χ=20, tol=1e-10, maxiter=20)
-    # res = optimiseipeps(ipeps, key; f_tol = 1e-6, verbose = true)
-    # e = minimum(res)
-    # @test isapprox(e, -1.190, atol = 1e-3)
+    Random.seed!(100)
+    model = Heisenberg(Ni,Nj,1.0,2.0,2.0)
+    bcipeps, key = init_ipeps(model; D=2, χ=20, tol=1e-10, maxiter=20)
+    res = optimiseipeps(bcipeps, key; f_tol = 1e-6)
+    e = minimum(res)
+    @test isapprox(e, -1.190, atol = 1e-3)
 
-    # Random.seed!(100)
-    # model = Heisenberg(Ni,Nj,2.0,0.5,0.5)
-    # ipeps, key = init_ipeps(model; D=2, χ=20, tol=1e-10, maxiter=20)
-    # res = optimiseipeps(ipeps, key; f_tol = 1e-6)
-    # e = minimum(res)
-    # @test isapprox(e, -1.0208, atol = 1e-3)
+    Random.seed!(100)
+    model = Heisenberg(Ni,Nj,2.0,0.5,0.5)
+    bcipeps, key = init_ipeps(model; D=2, χ=20, tol=1e-10, maxiter=20)
+    res = optimiseipeps(bcipeps, key; f_tol = 1e-6)
+    e = minimum(res)
+    @test isapprox(e, -1.0208, atol = 1e-3)
 end

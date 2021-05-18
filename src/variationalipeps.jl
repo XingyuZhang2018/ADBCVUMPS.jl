@@ -1,6 +1,7 @@
 using Optim, LineSearches
 using LinearAlgebra: I, norm
 using TimerOutputs
+using BCVUMPS: bigleftenv, bigrightenv, ALCtoAC, obs2x2FL, obs2x2FR
 
 """
     energy(h, bcipeps; χ, tol, maxiter)
@@ -44,28 +45,53 @@ a `SquareBCVUMPSRuntime` `env`.
 function expectationvalue(h, ap, env::SquareBCVUMPSRuntime)
     M,AL,C,AR,FL,FR = env.M,env.AL,env.C,env.AR,env.FL,env.FR
     Ni,Nj = size(M)
-    # Ni,Nj = 1,1
+    # Ni,Nj = 1,2
     ap /= norm(ap)
     etol = 0
     for j = 1:Nj, i = 1:Ni
-        ir = i + 1 - Ni * (i == Ni)
-        jr = j + 1 - Nj * (j == Nj)
-        e = ein"abc,cde,anm,ef,ml,fgh,lkj,hij,bnodpq,okigrs,pqrs -> "(FL[i,j],AL[i,j],conj(AL[ir,j]),C[i,j],conj(C[ir,j]),AR[i,jr],conj(AR[ir,jr]),FR[i,jr],ap[i,j],ap[i,jr],h)[]
-        n = ein"abc,cde,anm,ef,ml,fgh,lkj,hij,bnodpq,okigrs -> pqrs"(FL[i,j],AL[i,j],conj(AL[ir,j]),C[i,j],conj(C[ir,j]),AR[i,jr],conj(AR[ir,jr]),FR[i,jr],ap[i,j],ap[i,jr])
+        # ir = i + 1 - Ni * (i == Ni)
+        jr = j + 1 - (j==Nj) * Nj
+        _, FL = obs2x2FL(AL, M, FL)
+        _, FR = obs2x2FR(AR, M, FR)
+        e = ein"abc,cde,anm,ef,ml,fgh,lkj,hij,bnodpq,okigrs,pqrs -> "(FL[i,j],AL[i,j],conj(AL[i,j]),C[i,j],conj(C[i,j]),AR[i,jr],conj(AR[i,jr]),FR[i,jr],ap[i,j],ap[i,jr],h)[]
+        n = ein"abc,cde,anm,ef,ml,fgh,lkj,hij,bnodpq,okigrs -> pqrs"(FL[i,j],AL[i,j],conj(AL[i,j]),C[i,j],conj(C[i,j]),AR[i,jr],conj(AR[i,jr]),FR[i,jr],ap[i,j],ap[i,jr])
         n = ein"pprr -> "(n)[]
+        # @show i,j,e/n
         etol += e/n
     end
     
-    # AC = ein"asc,cb -> asb"(AL,C)
-    # _, FL4 = bigleftenv(AL, M)
-    # _, FR4 = bigrightenv(AL, M)
-    # e2 = ein"dcba,def,aji,fghi,ckgepq,bjhkrs,pqrs -> "(FL4,AC,conj(AC),FR4,ap,ap,h)[]
-    # n2 = ein"dcba,def,aji,fghi,ckgepq,bjhkrs -> pqrs"(FL4,AC,conj(AC),FR4,ap,ap)
-    # n2 = ein"pprr -> "(n2)[]
-    # @show e/n e2/n2 (e/n+e2/n2)/2
+    # Zygote.@ignore begin
+    #     AC = ALCtoAC(AL,C)
+    #     for j = 1:Nj, i = 1:Ni
+    #         ir = i + 1 - Ni * (i==Ni)
+    #         # irr = i + 2 - Ni * (i + 2 > Ni)
+    #         _, BgFL = bigleftenv(AL, M)
+    #         _, BgFR = bigrightenv(AR, M)
+    #         e2 = ein"dcba,def,aji,fghi,ckgepq,bjhkrs,pqrs -> "(BgFL[i,j],AC[i,j],conj(AC[ir,j]),BgFR[i,j],ap[i,j],ap[ir,j],h)[]
+    #         n2 = ein"dcba,def,aji,fghi,ckgepq,bjhkrs -> pqrs"(BgFL[i,j],AC[i,j],conj(AC[ir,j]),BgFR[i,j],ap[i,j],ap[ir,j])
+    #         n2 = ein"pprr -> "(n2)[]
+    #         @show i,j,e2/n2
+    #     end
+    # end
 
     return etol/Ni/Nj
 end
+
+"""
+    ito12(i,Ni)
+
+checkerboard pattern
+```
+    │    │   
+  ──A────B──  
+    │    │   
+  ──B────A──
+    │    │   
+```
+"""
+ito12(i,Ni) = mod(mod(i,Ni) + Ni*(mod(i,Ni)==0) + fld(i,Ni) + 1 - (mod(i,Ni)==0), 2) + 1
+
+buildbcipeps(bulk,Ni,Nj) = reshape([bulk[:,:,:,:,:,ito12(i,Ni)] for i = 1:Ni*Nj], (Ni, Nj))
 
 """
     init_ipeps(model::HamiltonianModel; D::Int, χ::Int, tol::Real, maxiter::Int)
@@ -83,10 +109,10 @@ function init_ipeps(model::HamiltonianModel; D::Int, χ::Int, tol::Real, maxiter
         verbose && println("load BCiPEPS from $chkp_file")
     else
         bulk = rand(D,D,D,D,2,2)
-        verbose && println("random initial iPEPS")
+        verbose && println("random initial BCiPEPS")
     end
     Ni, Nj = model.Ni, model.Nj
-    bcipeps = SquareBCIPEPS(reshape([bulk for i = 1:Ni*Nj],(Ni, Nj)))
+    bcipeps = SquareBCIPEPS(buildbcipeps(bulk,Ni,Nj))
     bcipeps = indexperm_symmetrize(bcipeps)
     return bcipeps, key
 end
@@ -105,11 +131,14 @@ function optimiseipeps(bcipeps::BCIPEPS{LT}, key; f_tol = 1e-6, verbose= false, 
     h = hamiltonian(model)
     Ni, Nj = model.Ni, model.Nj
     to = TimerOutput()
-    f(x) = @timeit to "forward" real(energy(h, model, BCIPEPS{LT}(reshape([x for i = 1:Ni*Nj],(Ni, Nj))); χ=χ, tol=tol, maxiter=maxiter, verbose=verbose))
-    ff(x) = real(energy(h, model, BCIPEPS{LT}(reshape([x for i = 1:Ni*Nj],(Ni, Nj))); χ=χ, tol=tol, maxiter=maxiter, verbose=verbose))
+    f(x) = @timeit to "forward" real(energy(h, model, BCIPEPS{LT}(buildbcipeps(x,Ni,Nj)); χ=χ, tol=tol, maxiter=maxiter, verbose=verbose))
+    ff(x) = real(energy(h, model, BCIPEPS{LT}(buildbcipeps(x,Ni,Nj)); χ=χ, tol=tol, maxiter=maxiter, verbose=verbose))
     g(x) = @timeit to "backward" Zygote.gradient(ff,x)[1]
+    x0 = zeros(D,D,D,D,2,2)
+    x0[:,:,:,:,:,1] = bcipeps.bulk[1,1]
+    x0[:,:,:,:,:,2] = bcipeps.bulk[2,1]
     res = optimize(f, g, 
-        bcipeps.bulk[1,1], optimmethod,inplace = false,
+        x0, optimmethod,inplace = false,
         Optim.Options(f_tol=f_tol,
         extended_trace=true,
         callback=os->writelog(os, key)),

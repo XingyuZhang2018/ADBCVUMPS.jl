@@ -18,7 +18,7 @@ using Zygote
     end
 
     @test isapprox(Zygote.gradient(foo1,β)[1], num_grad(foo1,β), atol = 1e-6)
-    @test isapprox(Zygote.gradient(foo2,β)[1],num_grad(foo2,β), atol = 1e-6)    
+    @test isapprox(Zygote.gradient(foo2,β)[1], num_grad(foo2,β), atol = 1e-6)    
 end
 
 @testset "J1-J2-2x2-ising" begin

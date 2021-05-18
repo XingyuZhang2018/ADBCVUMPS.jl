@@ -21,4 +21,14 @@ using Test
         println("bcipeps tests running...")
         include("bcipeps.jl")
     end
+
+    @testset "exampleobs" begin
+        println("exampleobs tests running...")
+        include("exampleobs.jl")
+    end
+
+    @testset "variationalipeps" begin
+        println("variationalipeps tests running...")
+        include("variationalipeps.jl")
+    end
 end

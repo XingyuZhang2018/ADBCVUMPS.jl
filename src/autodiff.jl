@@ -1,7 +1,7 @@
 using ChainRulesCore
 using LinearAlgebra
 using KrylovKit
-using BCVUMPS:qrpos,lqpos,leftenv,rightenv,FLmap,FRmap,ACenv,Cenv,ACmap,Cmap,ALCtoAC
+using BCVUMPS:qrpos,lqpos,leftenv,rightenv,FLmap,FRmap,ACenv,Cenv,ACmap,Cmap,ALCtoAC,obs2x2FL,obs2x2FR
 using FileIO
 using JLD2
 
@@ -52,7 +52,7 @@ function ChainRulesCore.rrule(::typeof(qrpos), A::AbstractArray{T,2}) where {T}
     Q, R = qrpos(A)
     function back((dQ, dR))
         M = R * dR' - dQ' * Q
-        dA = (UpperTriangular(R + I * 1e-6) \ (dQ + Q * Symmetric(M, :L))' )'
+        dA = (UpperTriangular(R + I * 1e-12) \ (dQ + Q * Symmetric(M, :L))' )'
         return NO_FIELDS, dA
     end
     return (Q, R), back
@@ -62,7 +62,7 @@ function ChainRulesCore.rrule(::typeof(lqpos), A::AbstractArray{T,2}) where {T}
     L, Q = lqpos(A)
     function back((dL, dQ))
         M = L' * dL - dQ * Q'
-        dA = LowerTriangular(L + I * 1e-6)' \ (dQ + Symmetric(M, :L) * Q)
+        dA = LowerTriangular(L + I * 1e-12)' \ (dQ + Symmetric(M, :L) * Q)
         return NO_FIELDS, dA
     end
     return (L, Q), back
@@ -385,6 +385,62 @@ function ChainRulesCore.rrule(::typeof(Cenv), C, FL, FR; kwargs...)
         return NO_FIELDS, NO_FIELDS, dFL, dFR
     end
     return (λC, C), back
+end
+
+function ChainRulesCore.rrule(::typeof(obs2x2FL), AL, M, FL; kwargs...)
+    λL, FL = obs2x2FL(AL, M, FL)
+    Ni, Nj = size(AL)
+    T = eltype(AL[1,1])
+    function back((dλL, dFL))
+        dAL = fill!(similar(AL, Array), zeros(T,size(AL[1,1])))
+        dM = fill!(similar(M, Array), zeros(T,size(M[1,1])))
+        for j = 1:Nj, i = 1:Ni
+            if dFL[i,j] === nothing
+                dFL[i,j] = zeros(T, size(FL[i,j]))
+            end
+            jr = j - 1 + Nj * (j == 1)
+            ξl, info = linsolve(FR -> FRmap(AL[i,:], AL[i,:], M[i,:], FR, jr), permutedims(dFL[i,j], (3, 2, 1)), -λL[i,j], 1)
+            # errL = ein"abc,cba ->"(FL[i,j], ξl)[]
+            # abs(errL) > 1e-1 && throw("FL and ξl aren't orthometric. $(errL) $(info)")
+            # @show info ein"abc,cba ->"(FL[i,j], ξl)[] ein"abc,abc -> "(FL[i,j], dFL[i,j])[]
+            for J = 1:Nj
+                dAiJ, dAipJ, dMiJ = dAMmap(AL[i,:], AL[i,:], M[i,:], FL[i,j], ξl, j, J)
+                dAL[i,J] += dAiJ
+                dAL[i,J] += dAipJ
+                dM[i,J] += dMiJ
+            end
+        end
+        return NO_FIELDS, dAL, dM, NO_FIELDS...
+    end
+    return (λL, FL), back
+end
+
+function ChainRulesCore.rrule(::typeof(obs2x2FR), AR, M, FR; kwargs...)
+    λR, FR = obs2x2FR(AR, M, FR)
+    Ni, Nj = size(AR)
+    T = eltype(AR[1,1])
+    function back((dλ, dFR))
+        dAR = fill!(similar(AR, Array), zeros(T,size(AR[1,1])))
+        dM = fill!(similar(M, Array), zeros(T,size(M[1,1])))
+        for j = 1:Nj, i = 1:Ni
+            jr = j - 1 + Nj * (j == 1)
+            if dFR[i,jr] === nothing
+                dFR[i,jr] = zeros(T, size(FR[i,j]))
+            end
+            ξr, info = linsolve(FL -> FLmap(AR[i,:], AR[i,:], M[i,:], FL, j), permutedims(dFR[i,jr], (3, 2, 1)), -λR[i,jr], 1)
+            # errR = ein"abc,cba ->"(ξr, FR[i,jr])[]
+            # abs(errR) > 1e-1 && throw("FR and ξr aren't orthometric. $(errR) $(info)")
+            # @show info ein"abc,cba ->"(ξr, FR[i,jr])[] ein"abc,abc -> "(FR[i,jr], dFR[i,jr])[]
+            for J = 1:Nj
+                dAiJ, dAipJ, dMiJ = dAMmap(AR[i,:], AR[i,:], M[i,:], ξr, FR[i,jr], j, J)
+                dAR[i,J] += dAiJ
+                dAR[i,J] += dAipJ
+                dM[i,J] += dMiJ
+            end
+        end
+        return NO_FIELDS, dAR, dM, NO_FIELDS...
+    end
+    return (λR, FR), back
 end
 
 @doc raw"
