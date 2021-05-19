@@ -2,7 +2,7 @@ using Test
 using ADBCVUMPS
 using ADBCVUMPS:num_grad
 using BCVUMPS
-using BCVUMPS:bcvumps_env,magnetisation,magofβ,energy,eneofβ,Z,Zofβ
+using BCVUMPS:bcvumps_env,magnetisation,Z
 using Random
 using Zygote
 
