@@ -59,17 +59,17 @@ end
     end
     @test isapprox(gradzygote, gradnum, atol=1e-3)
 
-    Random.seed!(3)
-    model = Heisenberg(Ni,Nj)
-    h = hamiltonian(model)
-    bcipeps, key = init_ipeps(model; D=2, χ=4, tol=1e-10, maxiter=20)
-    gradzygote = first(Zygote.gradient(bcipeps) do x
-        energy(h,model,x; χ=4, tol=1e-10, maxiter=20)
-    end).bulk
-    gradnum = num_grad(bcipeps.bulk, δ=1e-3) do x
-        energy(h,model, SquareBCIPEPS(x); χ=4, tol=1e-10, maxiter=20)
-    end
-    @test isapprox(gradzygote , gradnum, atol=1e-3)
+    # Random.seed!(3)
+    # model = Heisenberg(Ni,Nj)
+    # h = hamiltonian(model)
+    # bcipeps, key = init_ipeps(model; D=2, χ=4, tol=1e-10, maxiter=20)
+    # gradzygote = first(Zygote.gradient(bcipeps) do x
+    #     energy(h,model,x; χ=4, tol=1e-10, maxiter=20)
+    # end).bulk
+    # gradnum = num_grad(bcipeps.bulk, δ=1e-3) do x
+    #     energy(h,model, SquareBCIPEPS(x); χ=4, tol=1e-10, maxiter=20)
+    # end
+    # @test isapprox(gradzygote , gradnum, atol=1e-3)
 end
 
 @testset "TFIsing" for Ni = [2], Nj = [2]
@@ -81,19 +81,19 @@ end
     e = minimum(res)
     @test isapprox(e, -2.12566, atol = 1e-2)
 
-    Random.seed!(3)
-    model = TFIsing(Ni,Nj,0.5)
-    bcipeps, key = init_ipeps(model; D=2, χ=5, tol=1e-10, maxiter=20)
-    res = optimiseipeps(bcipeps, key; f_tol = 1e-6)
-    e = minimum(res)
-    @test isapprox(e, -2.0312, atol = 1e-2)
+    # Random.seed!(3)
+    # model = TFIsing(Ni,Nj,0.5)
+    # bcipeps, key = init_ipeps(model; D=2, χ=5, tol=1e-10, maxiter=20)
+    # res = optimiseipeps(bcipeps, key; f_tol = 1e-6)
+    # e = minimum(res)
+    # @test isapprox(e, -2.0312, atol = 1e-2)
 
-    Random.seed!(3)
-    model = TFIsing(Ni,Nj,2.0)
-    bcipeps, key = init_ipeps(model; D=2, χ=5, tol=1e-10, maxiter=20)
-    res = optimiseipeps(bcipeps, key; f_tol = 1e-6)
-    e = minimum(res)
-    @test isapprox(e, -2.5113, atol = 1e-2)
+    # Random.seed!(3)
+    # model = TFIsing(Ni,Nj,2.0)
+    # bcipeps, key = init_ipeps(model; D=2, χ=5, tol=1e-10, maxiter=20)
+    # res = optimiseipeps(bcipeps, key; f_tol = 1e-6)
+    # e = minimum(res)
+    # @test isapprox(e, -2.5113, atol = 1e-2)
 end
 
 @testset "heisenberg" for Ni = [2], Nj = [2]
@@ -105,17 +105,17 @@ end
     e = minimum(res)
     @test isapprox(e, -0.66023, atol = 1e-4)
 
-    Random.seed!(100)
-    model = Heisenberg(Ni,Nj,1.0,2.0,2.0)
-    bcipeps, key = init_ipeps(model; D=2, χ=5, tol=1e-10, maxiter=20)
-    res = optimiseipeps(bcipeps, key; f_tol = 1e-6)
-    e = minimum(res)
-    @test isapprox(e, -1.190, atol = 1e-3)
+    # Random.seed!(100)
+    # model = Heisenberg(Ni,Nj,1.0,2.0,2.0)
+    # bcipeps, key = init_ipeps(model; D=2, χ=5, tol=1e-10, maxiter=20)
+    # res = optimiseipeps(bcipeps, key; f_tol = 1e-6)
+    # e = minimum(res)
+    # @test isapprox(e, -1.190, atol = 1e-3)
 
-    Random.seed!(100)
-    model = Heisenberg(Ni,Nj,2.0,0.5,0.5)
-    bcipeps, key = init_ipeps(model; D=2, χ=5, tol=1e-10, maxiter=20)
-    res = optimiseipeps(bcipeps, key; f_tol = 1e-6)
-    e = minimum(res)
-    @test isapprox(e, -1.0208, atol = 1e-3)
+    # Random.seed!(100)
+    # model = Heisenberg(Ni,Nj,2.0,0.5,0.5)
+    # bcipeps, key = init_ipeps(model; D=2, χ=5, tol=1e-10, maxiter=20)
+    # res = optimiseipeps(bcipeps, key; f_tol = 1e-6)
+    # e = minimum(res)
+    # @test isapprox(e, -1.0208, atol = 1e-3)
 end
