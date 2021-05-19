@@ -64,7 +64,7 @@ end
     h = hamiltonian(model)
     bcipeps, key = init_ipeps(model; D=2, χ=4, tol=1e-10, maxiter=20)
     gradzygote = first(Zygote.gradient(bcipeps) do x
-        energy(h,model,x; χ=20, tol=1e-10, maxiter=20)
+        energy(h,model,x; χ=4, tol=1e-10, maxiter=20)
     end).bulk
     gradnum = num_grad(bcipeps.bulk, δ=1e-3) do x
         energy(h,model, SquareBCIPEPS(x); χ=4, tol=1e-10, maxiter=20)
