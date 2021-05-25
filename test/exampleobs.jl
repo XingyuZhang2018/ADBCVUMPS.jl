@@ -1,13 +1,13 @@
-using Test
 using ADBCVUMPS
 using ADBCVUMPS:num_grad
 using BCVUMPS
 using BCVUMPS:bcvumps_env,magnetisation,Z
 using Random
+using Test
 using Zygote
 
 @testset "$(Ni)x$(Nj) ising" for Ni = [1,2], Nj = [1,2]
-    Random.seed!(100)
+    Random.seed!(50)
     model = Ising(Ni,Nj)
     β,D = 0.5, 10
     function foo1(β)

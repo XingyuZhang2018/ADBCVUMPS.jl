@@ -1,15 +1,14 @@
 using ADBCVUMPS
 using ADBCVUMPS:num_grad
 using BCVUMPS:model_tensor,qrpos,lqpos,Ising,Ising22
-using BCVUMPS:leftorth,leftenv,rightorth,rightenv,FLmap,ACenv,Cenv,ACCtoALAR,obs2x2FL,obs2x2FR
-using Test
-using Zygote
+using BCVUMPS:leftorth,leftenv,rightorth,rightenv,ACenv,Cenv,ACCtoALAR,obs2x2FL,obs2x2FR
 using ChainRulesTestUtils
 using ChainRulesCore
-using Random
-using OMEinsum
 using LinearAlgebra
 using Random
+using Test
+using OMEinsum
+using Zygote
 
 @testset "matrix autodiff" begin
     a = randn(10, 10)
@@ -84,7 +83,7 @@ end
 
     function foo3(β)
         M = model_tensor(Ising(Ni, Nj), β)
-        λL, FL = leftenv(AL, M)
+        _, FL = leftenv(AL, M)
         s = 0
         for j in 1:Nj, i in 1:Ni
             s += ein"γcη,ηcγαaβ,βaα -> "(FL[i,j], S[i,j], FL[i,j])[] / ein"γcη,ηcγ -> "(FL[i,j], FL[i,j])[]
@@ -95,7 +94,7 @@ end
 
     function foo4(β)
         M = model_tensor(Ising(Ni, Nj), β)
-        λR, FR = rightenv(AR, M)
+        _, FR = rightenv(AR, M)
         s = 0
         for j in 1:Nj, i in 1:Ni
             s += ein"γcη,ηcγαaβ,βaα -> "(FR[i,j], S[i,j], FR[i,j])[] / ein"γcη,ηcγ -> "(FR[i,j], FR[i,j])[]
