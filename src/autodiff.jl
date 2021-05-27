@@ -1,9 +1,11 @@
 using ChainRulesCore
 using LinearAlgebra
 using KrylovKit
+using BCVUMPS
 using BCVUMPS:qrpos,lqpos,leftenv,rightenv,FLmap,FRmap,ACenv,Cenv,ACmap,Cmap,ALCtoAC,obs2x2FL,obs2x2FR
 using FileIO
 using JLD2
+using Zygote
 
 Zygote.@nograd BCVUMPS.StopFunction
 Zygote.@nograd BCVUMPS.error
@@ -25,6 +27,17 @@ function ChainRulesCore.rrule(::typeof(Base.typed_hvcat), ::Type{T}, rows::Tuple
         return NO_FIELDS, NO_FIELDS, NO_FIELDS, permutedims(ȳ)...
     end
     return y, back
+end
+
+# function ChainRulesCore.rrule(::typeof(BCVUMPSRuntime), M::AT, AL::ET, C::CT, AR::ET, FL::ET, FR::ET) where {LT <: AbstractLattice,AT <: AbstractArray{<:AbstractArray,2}, CT <: AbstractArray{<:AbstractArray,2}, ET <: AbstractArray{<:AbstractArray,2}}
+#     function back(dy)
+#         return NO_FIELDS, dy.M, dy.AL, dy.C, dy.AR, dy.FL, dy.FR
+#     end
+#     return BCVUMPSRuntime{LT}(M, AL, C, AR, FL, FR), back
+# end
+
+@Zygote.adjoint function BCVUMPSRuntime{LT}(M::AT, AL::ET, C::CT, AR::ET, FL::ET, FR::ET) where {LT <: AbstractLattice,AT <: AbstractArray{<:AbstractArray,2}, CT <: AbstractArray{<:AbstractArray,2}, ET <: AbstractArray{<:AbstractArray,2}}
+        return BCVUMPSRuntime{LT}(M, AL, C, AR, FL, FR), dy->(dy.M, dy.AL, dy.C, dy.AR, dy.FL, dy.FR)
 end
 
 # improves performance compared to default implementation, also avoids errors
@@ -51,8 +64,8 @@ end
 function ChainRulesCore.rrule(::typeof(qrpos), A::AbstractArray{T,2}) where {T}
     Q, R = qrpos(A)
     function back((dQ, dR))
-        M = R * dR' - dQ' * Q
-        dA = (UpperTriangular(R + I * 1e-12) \ (dQ + Q * Symmetric(M, :L))' )'
+        M = Array(R * dR' - dQ' * Q)
+        dA = (UpperTriangular(R + I * 1e-12) \ (dQ + Q * _arraytype(Q)(Symmetric(M, :L)))' )'
         return NO_FIELDS, dA
     end
     return (Q, R), back
@@ -61,8 +74,8 @@ end
 function ChainRulesCore.rrule(::typeof(lqpos), A::AbstractArray{T,2}) where {T}
     L, Q = lqpos(A)
     function back((dL, dQ))
-        M = L' * dL - dQ * Q'
-        dA = LowerTriangular(L + I * 1e-12)' \ (dQ + Symmetric(M, :L) * Q)
+        M = Array(L' * dL - dQ * Q')
+        dA = LowerTriangular(L + I * 1e-12)' \ (dQ + _arraytype(Q)(Symmetric(M, :L)) * Q)
         return NO_FIELDS, dA
     end
     return (L, Q), back
@@ -117,12 +130,13 @@ function ChainRulesCore.rrule(::typeof(leftenv), AL, M, FL; kwargs...)
     λL, FL = leftenv(AL, M, FL)
     Ni, Nj = size(AL)
     T = eltype(AL[1,1])
+    atype = _arraytype(M[1,1])
     function back((dλL, dFL))
-        dAL = fill!(similar(AL, Array), zeros(T,size(AL[1,1])))
-        dM = fill!(similar(M, Array), zeros(T,size(M[1,1])))
+        dAL = fill!(similar(AL, atype), atype(zeros(T,size(AL[1,1]))))
+        dM = fill!(similar(M, atype), atype(zeros(T,size(M[1,1]))))
         for j = 1:Nj, i = 1:Ni
             if dFL[i,j] === nothing
-                dFL[i,j] = zeros(T, size(FL[i,j]))
+                dFL[i,j] = atype(zeros(T, size(FL[i,j])))
             end
             ir = i + 1 - Ni * (i == Ni)
             jr = j - 1 + Nj * (j == 1)
@@ -146,14 +160,15 @@ function ChainRulesCore.rrule(::typeof(rightenv), AR, M, FR; kwargs...)
     λR, FR = rightenv(AR, M, FR)
     Ni, Nj = size(AR)
     T = eltype(AR[1,1])
+    atype = _arraytype(M[1,1])
     function back((dλ, dFR))
-        dAR = fill!(similar(AR, Array), zeros(T,size(AR[1,1])))
-        dM = fill!(similar(M, Array), zeros(T,size(M[1,1])))
+        dAR = fill!(similar(AR, atype), atype(zeros(T,size(AR[1,1]))))
+        dM = fill!(similar(M, atype), atype(zeros(T,size(M[1,1]))))
         for j = 1:Nj, i = 1:Ni
             ir = i + 1 - Ni * (i == Ni)
             jr = j - 1 + Nj * (j == 1)
             if dFR[i,jr] === nothing
-                dFR[i,jr] = zeros(T, size(FR[i,j]))
+                dFR[i,jr] = atype(zeros(T, size(FR[i,j])))
             end
             ξr, info = linsolve(FL -> FLmap(AR[i,:], AR[ir,:], M[i,:], FL, j), permutedims(dFR[i,jr], (3, 2, 1)), -λR[i,jr], 1)
             # errR = ein"abc,cba ->"(ξr, FR[i,jr])[]
@@ -261,13 +276,14 @@ function ChainRulesCore.rrule(::typeof(ACenv), AC, FL, M, FR; kwargs...)
     λAC, AC = ACenv(AC, FL, M, FR)
     Ni, Nj = size(AC)
     T = eltype(AC[1,1])
+    atype = _arraytype(M[1,1])
     function back((dλ, dAC))
-        dFL = fill!(similar(FL, Array), zeros(T,size(FL[1,1])))
-        dM = fill!(similar(M, Array), zeros(T,size(M[1,1])))
-        dFR = fill!(similar(FR, Array), zeros(T,size(FR[1,1])))
+        dFL = fill!(similar(FL, atype), atype(zeros(T,size(FL[1,1]))))
+        dM = fill!(similar(M, atype), atype(zeros(T,size(M[1,1]))))
+        dFR = fill!(similar(FR, atype), atype(zeros(T,size(FR[1,1]))))
         for j = 1:Nj, i = 1:Ni
             if dAC[i,j] === nothing
-                dAC[i,j] = zeros(T, size(AC[i,j]))
+                dAC[i,j] = atype(zeros(T, size(AC[i,j])))
             end
             ir = i - 1 + Ni * (i == 1)
             ξAC, info = linsolve(ACd -> ACdmap(ACd, FL[:,j], FR[:,j], M[:,j], ir), dAC[i,j], -λAC[i,j], 1)
@@ -363,12 +379,13 @@ function ChainRulesCore.rrule(::typeof(Cenv), C, FL, FR; kwargs...)
     λC, C = Cenv(C, FL, FR)
     Ni, Nj = size(C)
     T = eltype(C[1,1])
+    atype = _arraytype(FL[1,1])
     function back((dλ, dC))
-        dFL = fill!(similar(FL, Array), zeros(T,size(FL[1,1])))
-        dFR = fill!(similar(FR, Array), zeros(T,size(FR[1,1])))
+        dFL = fill!(similar(FL, atype), atype(zeros(T,size(FL[1,1]))))
+        dFR = fill!(similar(FR, atype), atype(zeros(T,size(FR[1,1]))))
         for j = 1:Nj, i = 1:Ni
             if dC[i,j] === nothing
-                dC[i,j] = zeros(T, size(C[i,j]))
+                dC[i,j] = atype(zeros(T, size(C[i,j])))
             end
             ir = i - 1 + Ni * (i == 1)
             jr = j + 1 - (j==Nj) * Nj
@@ -391,12 +408,13 @@ function ChainRulesCore.rrule(::typeof(obs2x2FL), AL, M, FL; kwargs...)
     λL, FL = obs2x2FL(AL, M, FL)
     Ni, Nj = size(AL)
     T = eltype(AL[1,1])
+    atype = _arraytype(M[1,1])
     function back((dλL, dFL))
-        dAL = fill!(similar(AL, Array), zeros(T,size(AL[1,1])))
-        dM = fill!(similar(M, Array), zeros(T,size(M[1,1])))
+        dAL = fill!(similar(AL, atype), atype(zeros(T,size(AL[1,1]))))
+        dM = fill!(similar(M, atype), atype(zeros(T,size(M[1,1]))))
         for j = 1:Nj, i = 1:Ni
             if dFL[i,j] === nothing
-                dFL[i,j] = zeros(T, size(FL[i,j]))
+                dFL[i,j] = atype(zeros(T, size(FL[i,j])))
             end
             jr = j - 1 + Nj * (j == 1)
             ξl, info = linsolve(FR -> FRmap(AL[i,:], AL[i,:], M[i,:], FR, jr), permutedims(dFL[i,j], (3, 2, 1)), -λL[i,j], 1)
@@ -419,13 +437,14 @@ function ChainRulesCore.rrule(::typeof(obs2x2FR), AR, M, FR; kwargs...)
     λR, FR = obs2x2FR(AR, M, FR)
     Ni, Nj = size(AR)
     T = eltype(AR[1,1])
+    atype = _arraytype(M[1,1])
     function back((dλ, dFR))
-        dAR = fill!(similar(AR, Array), zeros(T,size(AR[1,1])))
-        dM = fill!(similar(M, Array), zeros(T,size(M[1,1])))
+        dAR = fill!(similar(AR, atype), atype(zeros(T,size(AR[1,1]))))
+        dM = fill!(similar(M, atype), atype(zeros(T,size(M[1,1]))))
         for j = 1:Nj, i = 1:Ni
             jr = j - 1 + Nj * (j == 1)
             if dFR[i,jr] === nothing
-                dFR[i,jr] = zeros(T, size(FR[i,j]))
+                dFR[i,jr] = atype(zeros(T, size(FR[i,j])))
             end
             ξr, info = linsolve(FL -> FLmap(AR[i,:], AR[i,:], M[i,:], FL, j), permutedims(dFR[i,jr], (3, 2, 1)), -λR[i,jr], 1)
             # errR = ein"abc,cba ->"(ξr, FR[i,jr])[]
@@ -471,8 +490,10 @@ true
 ```
 "
 function num_grad(f, a::AbstractArray; δ::Real=1e-5)
-map(CartesianIndices(a)) do i
-        foo = x -> (ac = copy(a); ac[i] = x; f(ac))
-        num_grad(foo, a[i], δ=δ)
+    b = Array(copy(a))
+    df = map(CartesianIndices(b)) do i
+        foo = x -> (ac = copy(b); ac[i] = x; f(_arraytype(a)(ac)))
+        num_grad(foo, b[i], δ=δ)
     end
+    return _arraytype(a)(df)
 end

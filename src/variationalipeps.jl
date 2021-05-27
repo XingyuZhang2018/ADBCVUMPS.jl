@@ -20,6 +20,7 @@ function energy(h, model::HamiltonianModel, bcipeps::BCIPEPS; χ::Int, tol::Real
     a = [ein"ijklaa -> ijkl"(ap[i]) for i = 1:Ni*Nj]
     a = reshape(a, Ni, Nj)
 
+    rt = []
     folder = "./data/$(model)/"
     mkpath(folder)
     chkp_file = folder*"bcvumps_env_$(Ni)x$(Nj)_D$(D)_chi$(χ).jld2"
@@ -28,9 +29,13 @@ function energy(h, model::HamiltonianModel, bcipeps::BCIPEPS; χ::Int, tol::Real
     else
         rt = SquareBCVUMPSRuntime(a, Val(:random), χ; verbose = verbose)
     end
-
+    # @show typeof(rt)
     env = bcvumps(rt; tol=tol, maxiter=maxiter, verbose = verbose)
-    save(chkp_file, "env", env)
+    Zygote.@ignore begin
+        M, AL, C, AR, FL, FR = env.M, Array{Array{Float64,3},2}(env.AL), Array{Array{Float64,2},2}(env.C), Array{Array{Float64,3},2}(env.AR), Array{Array{Float64,3},2}(env.FL), Array{Array{Float64,3},2}(env.FR)
+        envsave = SquareBCVUMPSRuntime(M, AL, C, AR, FL, FR)
+        save(chkp_file, "env", envsave)
+    end
     e = expectationvalue(h, ap, env)
     return e
 end
@@ -53,11 +58,11 @@ function expectationvalue(h, ap, env::SquareBCVUMPSRuntime)
         jr = j + 1 - (j==Nj) * Nj
         _, FL = obs2x2FL(AL, M, FL)
         _, FR = obs2x2FR(AR, M, FR)
-        e = ein"abc,cde,anm,ef,ml,fgh,lkj,hij,bnodpq,okigrs,pqrs -> "(FL[i,j],AL[i,j],conj(AL[i,j]),C[i,j],conj(C[i,j]),AR[i,jr],conj(AR[i,jr]),FR[i,jr],ap[i,j],ap[i,jr],h)[]
+        e = ein"abc,cde,anm,ef,ml,fgh,lkj,hij,bnodpq,okigrs,pqrt -> st"(FL[i,j],AL[i,j],conj(AL[i,j]),C[i,j],conj(C[i,j]),AR[i,jr],conj(AR[i,jr]),FR[i,jr],ap[i,j],ap[i,jr],h)
         n = ein"abc,cde,anm,ef,ml,fgh,lkj,hij,bnodpq,okigrs -> pqrs"(FL[i,j],AL[i,j],conj(AL[i,j]),C[i,j],conj(C[i,j]),AR[i,jr],conj(AR[i,jr]),FR[i,jr],ap[i,j],ap[i,jr])
-        n = ein"pprr -> "(n)[]
+        n = ein"pprs -> rs"(n)
         # @show i,j,e/n
-        etol += e/n
+        etol += safetr(e)/safetr(n)
     end
     
     # Zygote.@ignore begin
@@ -126,14 +131,14 @@ two-site hamiltonian `h`. The minimization is done using `Optim` with default-me
 providing `optimmethod`. Other options to optim can be passed with `optimargs`.
 The energy is calculated using vumps with key include parameters `χ`, `tol` and `maxiter`.
 """
-function optimiseipeps(bcipeps::BCIPEPS{LT}, key; f_tol = 1e-6, verbose= false, optimmethod = LBFGS(m = 20)) where LT
+function optimiseipeps(bcipeps::BCIPEPS{LT}, key; f_tol = 1e-6, verbose= false, optimmethod = LBFGS(m = 20), atype = Array) where LT
     model, D, χ, tol, maxiter = key
-    h = hamiltonian(model)
+    h = atype(hamiltonian(model))
     Ni, Nj = model.Ni, model.Nj
     to = TimerOutput()
-    f(x) = @timeit to "forward" real(energy(h, model, BCIPEPS{LT}(buildbcipeps(x,Ni,Nj)); χ=χ, tol=tol, maxiter=maxiter, verbose=verbose))
-    ff(x) = real(energy(h, model, BCIPEPS{LT}(buildbcipeps(x,Ni,Nj)); χ=χ, tol=tol, maxiter=maxiter, verbose=verbose))
-    g(x) = @timeit to "backward" Zygote.gradient(ff,x)[1]
+    f(x) = @timeit to "forward" real(energy(h, model, BCIPEPS{LT}(buildbcipeps(atype(x),Ni,Nj)); χ=χ, tol=tol, maxiter=maxiter, verbose=verbose))
+    ff(x) = real(energy(h, model, BCIPEPS{LT}(buildbcipeps(atype(x),Ni,Nj)); χ=χ, tol=tol, maxiter=maxiter, verbose=verbose))
+    g(x) = @timeit to "backward" Zygote.gradient(ff,atype(x))[1]
     x0 = zeros(D,D,D,D,2,2)
     x0[:,:,:,:,:,1] = bcipeps.bulk[1,1]
     x0[:,:,:,:,:,2] = bcipeps.bulk[2,1]
