@@ -11,7 +11,7 @@ Zygote.@nograd BCVUMPS.StopFunction
 Zygote.@nograd BCVUMPS.error
 Zygote.@nograd BCVUMPS.FLint
 Zygote.@nograd BCVUMPS.FRint
-Zygote.@nograd BCVUMPS._initializect_square
+# Zygote.@nograd BCVUMPS._initializect_square
 Zygote.@nograd BCVUMPS.leftorth
 Zygote.@nograd BCVUMPS.rightorth
 Zygote.@nograd BCVUMPS.ALCtoAC
@@ -27,17 +27,6 @@ function ChainRulesCore.rrule(::typeof(Base.typed_hvcat), ::Type{T}, rows::Tuple
         return NO_FIELDS, NO_FIELDS, NO_FIELDS, permutedims(ȳ)...
     end
     return y, back
-end
-
-# function ChainRulesCore.rrule(::typeof(BCVUMPSRuntime), M::AT, AL::ET, C::CT, AR::ET, FL::ET, FR::ET) where {LT <: AbstractLattice,AT <: AbstractArray{<:AbstractArray,2}, CT <: AbstractArray{<:AbstractArray,2}, ET <: AbstractArray{<:AbstractArray,2}}
-#     function back(dy)
-#         return NO_FIELDS, dy.M, dy.AL, dy.C, dy.AR, dy.FL, dy.FR
-#     end
-#     return BCVUMPSRuntime{LT}(M, AL, C, AR, FL, FR), back
-# end
-
-@Zygote.adjoint function BCVUMPSRuntime{LT}(M::AT, AL::ET, C::CT, AR::ET, FL::ET, FR::ET) where {LT <: AbstractLattice,AT <: AbstractArray{<:AbstractArray,2}, CT <: AbstractArray{<:AbstractArray,2}, ET <: AbstractArray{<:AbstractArray,2}}
-        return BCVUMPSRuntime{LT}(M, AL, C, AR, FL, FR), dy->(dy.M, dy.AL, dy.C, dy.AR, dy.FL, dy.FR)
 end
 
 # improves performance compared to default implementation, also avoids errors
