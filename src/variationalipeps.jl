@@ -13,8 +13,9 @@ function energy(h, model::HamiltonianModel, bcipeps::BCIPEPS; χ::Int, tol::Real
     bcipeps = indexperm_symmetrize(bcipeps)  # NOTE: this is not good
     D = getd(bcipeps)^2
     s = gets(bcipeps)
-    Ni,Nj = size(bcipeps.bulk)
-    ap = [ein"abcdx,ijkly -> aibjckdlxy"(bcipeps.bulk[i], conj(bcipeps.bulk[i])) for i = 1:Ni*Nj]
+    bulk = bcipeps.bulk
+    Ni,Nj = size(bulk)
+    ap = [ein"abcdx,ijkly -> aibjckdlxy"(bulk[i], conj(bulk[i])) for i = 1:Ni*Nj]
     ap = [reshape(ap[i], D, D, D, D, s, s) for i = 1:Ni*Nj]
     ap = reshape(ap, Ni, Nj)
     a = [ein"ijklaa -> ijkl"(ap[i]) for i = 1:Ni*Nj]
@@ -49,18 +50,24 @@ a `SquareBCVUMPSRuntime` `env`.
 """
 function expectationvalue(h, ap, env::SquareBCVUMPSRuntime)
     M,AL,C,AR,FL,FR = env.M,env.AL,env.C,env.AR,env.FL,env.FR
+    _, FL = obs2x2FL(AL, M, FL)
+    _, FR = obs2x2FR(AR, M, FR)
     Ni,Nj = size(M)
     # Ni,Nj = 1,2
     ap /= norm(ap)
     etol = 0
     for j = 1:Nj, i = 1:Ni
         # ir = i + 1 - Ni * (i == Ni)
+        @show i,j
         jr = j + 1 - (j==Nj) * Nj
-        _, FL = obs2x2FL(AL, M, FL)
-        _, FR = obs2x2FR(AR, M, FR)
-        e = ein"abc,cde,anm,ef,ml,fgh,lkj,hij,bnodpq,okigrs,pqrt -> st"(FL[i,j],AL[i,j],conj(AL[i,j]),C[i,j],conj(C[i,j]),AR[i,jr],conj(AR[i,jr]),FR[i,jr],ap[i,j],ap[i,jr],h)
-        n = ein"abc,cde,anm,ef,ml,fgh,lkj,hij,bnodpq,okigrs -> pqrs"(FL[i,j],AL[i,j],conj(AL[i,j]),C[i,j],conj(C[i,j]),AR[i,jr],conj(AR[i,jr]),FR[i,jr],ap[i,j],ap[i,jr])
-        n = ein"pprs -> rs"(n)
+        l = ein"abc,cde,anm,ef,ml,bnodpq -> lofpq"(FL[i,j],AL[i,j],conj(AL[i,j]),C[i,j],conj(C[i,j]), ap[i,j])
+        r = ein"fgh,lkj,hij,okigrs -> folrs"(AR[i,jr],conj(AR[i,jr]),FR[i,jr],ap[i,jr])
+        e = ein"lofpq,folrs,pqrt -> st"(l,r,h)
+        n = ein"lofpp,folrt -> rt"(l,r)
+        # @show typeof(e)
+        # e = ein"abc,cde,anm,ef,ml,fgh,lkj,hij,bnodpq,okigrs,pqrt -> st"(FL[i,j],AL[i,j],conj(AL[i,j]),C[i,j],conj(C[i,j]),AR[i,jr],conj(AR[i,jr]),FR[i,jr],ap[i,j],ap[i,jr],h)
+        # n = ein"abc,cde,anm,ef,ml,fgh,lkj,hij,bnodpq,okigrs -> pqrs"(FL[i,j],AL[i,j],conj(AL[i,j]),C[i,j],conj(C[i,j]),AR[i,jr],conj(AR[i,jr]),FR[i,jr],ap[i,j],ap[i,jr])
+        # n = ein"pprs -> rs"(n)
         # @show i,j,e/n
         etol += safetr(e)/safetr(n)
     end

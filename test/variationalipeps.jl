@@ -9,7 +9,7 @@ using Test
 using OMEinsum
 using Optim
 using Zygote
-CUDA.allowscalar(false)
+CUDA.allowscalar(true)
 
 @testset "non-interacting with $atype{$dtype}" for atype in [CuArray], dtype in [Float64], Ni = [2], Nj = [2]
     Random.seed!(100)
