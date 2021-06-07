@@ -12,7 +12,7 @@ return the energy of the `bcipeps` 2-site hamiltonian `h` and calculated via a
 BCVUMPS with parameters `χ`, `tol` and `maxiter`.
 """
 function energy(h, bcipeps::BCIPEPS, oc, key; verbose = false)
-    model, atype, D, χ, tol, maxiter = key
+    model, atype, _, χ, tol, maxiter = key
     bcipeps = indexperm_symmetrize(bcipeps)  # NOTE: this is not good
     D = getd(bcipeps)^2
     s = gets(bcipeps)
@@ -66,7 +66,6 @@ function expectationvalue(h, ap, env::SquareBCVUMPSRuntime, oc)
     etol = 0
     for j = 1:Nj, i = 1:Ni
         # ir = i + 1 - Ni * (i == Ni)
-        @show i,j
         jr = j + 1 - (j==Nj) * Nj
         lr = oc(FL[i,j],AL[i,j],ap[i,j],conj(AL[i,j]),C[i,j],conj(C[i,j]),FR[i,jr],AR[i,jr],ap[i,jr],conj(AR[i,jr]))
         e = ein"pqrs, pqrs -> "(lr,h)

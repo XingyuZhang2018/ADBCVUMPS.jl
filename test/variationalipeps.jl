@@ -108,11 +108,11 @@ end
     # @test isapprox(e, -2.5113, atol = 1e-2)
 end
 
-@testset "heisenberg with $atype{$dtype}" for atype in [Array], dtype in [Float64], Ni = [2], Nj = [2]
+@testset "heisenberg with $atype{$dtype}" for atype in [CuArray], dtype in [Float64], Ni = [2], Nj = [2]
     # comparison with results from https://github.com/wangleiphy/tensorgrad
     Random.seed!(100)
     model = Heisenberg(Ni,Nj,1.0,1.0,1.0)
-    bcipeps, key = init_ipeps(model; atype = atype, D=2, χ=20, tol=1e-10, maxiter=10)
+    bcipeps, key = init_ipeps(model; atype = atype, D=3, χ=20, tol=1e-10, maxiter=10)
     res = optimiseipeps(bcipeps, key; f_tol = 1e-6, opiter = 100, verbose = true)
     e = minimum(res)
     @test isapprox(e, -0.66023, atol = 1e-4)
