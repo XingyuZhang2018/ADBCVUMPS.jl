@@ -4,7 +4,7 @@ using Zygote
 using OMEinsum
 using BCVUMPS
 using BCVUMPS: HamiltonianModel
-using BCVUMPS: _mattype, _arraytype, safetr
+using BCVUMPS: _mattype, _arraytype
 
 export num_grad
 export TFIsing, Heisenberg

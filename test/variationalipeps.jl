@@ -1,5 +1,5 @@
 using ADBCVUMPS
-using ADBCVUMPS: energy, num_grad, diaglocal
+using ADBCVUMPS: energy, num_grad, diaglocal, optcont
 using BCVUMPS
 using CUDA
 using LinearAlgebra: norm, svd
@@ -9,22 +9,26 @@ using Test
 using OMEinsum
 using Optim
 using Zygote
-CUDA.allowscalar(true)
+CUDA.allowscalar(false)
 
-@testset "non-interacting with $atype{$dtype}" for atype in [CuArray], dtype in [Float64], Ni = [2], Nj = [2]
+@testset "non-interacting with $atype{$dtype}" for atype in [Array], dtype in [Float64], Ni = [2], Nj = [2]
     Random.seed!(100)
+    D, χ, tol, maxiter = 2, 10, 1e-10, 10
     rd = randn()
-    rd2 = randn(2,2,2,2,2)
+    rd2 = randn(D,D,D,D,2)
     model = diaglocal(Ni,Nj,[1,-1.0])
     h = atype(hamiltonian(model))
-    as = (reshape([atype(rand(3,3,3,3,2)) for i = 1:Ni*Nj],(Ni,Nj)) for _ in 1:10)
+    key = (model, atype, D, χ, tol, maxiter)
+    as = (reshape([atype(rand(D,D,D,D,2)) for i = 1:Ni*Nj],(Ni,Nj)) for _ in 1:10)
     # @test all(a -> -1 < energy(h, model, SquareBCIPEPS(a); χ=5, tol=1e-10, maxiter=10)/2 < 1, as)
 
-    a = reshape([zeros(2,2,2,2,2) .+ 1e-12 * rd2 for i = 1:Ni*Nj],(Ni,Nj))
+    a = reshape([zeros(D,D,D,D,2) .+ 1e-12 * rd2 for i = 1:Ni*Nj],(Ni,Nj))
     for j=1:Nj, i=1:Ni
         a[i,j][1,1,1,1,2] = rd
     end
-    # @test energy(h, model, SquareBCIPEPS(a); χ=4, tol=1e-10, maxiter=10)/2 ≈ -1
+    a = Array{atype{Float64, 5},2}(a)
+    oc = optcont(D, χ)
+    @test energy(h, SquareBCIPEPS(a), oc, key)/2 ≈ -1
 
     # a = reshape([zeros(2,2,2,2,2) .+ 1e-12 * rd2 for i = 1:Ni*Nj],(Ni,Nj))
     # for j=1:Nj, i=1:Ni
@@ -48,8 +52,8 @@ CUDA.allowscalar(true)
 
     hdiag = [0.3,-0.43]
     model = diaglocal(Ni,Nj,hdiag)
-    bcipeps, key = init_ipeps(model; D=2, χ=4, tol=1e-10, maxiter=20)
-    res = optimiseipeps(bcipeps, key; f_tol = 1e-6, atype = atype, verbose = true)
+    bcipeps, key = init_ipeps(model; atype = atype, D=2, χ=4, tol=1e-10, maxiter=20)
+    res = optimiseipeps(bcipeps, key; f_tol = 1e-6, verbose = true)
     e = minimum(res)/2
     @test isapprox(e, minimum(hdiag), atol=1e-3)
 end
@@ -104,12 +108,12 @@ end
     # @test isapprox(e, -2.5113, atol = 1e-2)
 end
 
-@testset "heisenberg with $atype{$dtype}" for atype in [CuArray], dtype in [Float64], Ni = [2], Nj = [2]
+@testset "heisenberg with $atype{$dtype}" for atype in [Array], dtype in [Float64], Ni = [2], Nj = [2]
     # comparison with results from https://github.com/wangleiphy/tensorgrad
     Random.seed!(100)
     model = Heisenberg(Ni,Nj,1.0,1.0,1.0)
-    bcipeps, key = init_ipeps(model; D=2, χ=20, tol=1e-10, maxiter=20)
-    res = optimiseipeps(bcipeps, key; f_tol = 1e-6, atype = atype, verbose = true, opiter = 10)
+    bcipeps, key = init_ipeps(model; atype = atype, D=2, χ=20, tol=1e-10, maxiter=10)
+    res = optimiseipeps(bcipeps, key; f_tol = 1e-6, opiter = 100, verbose = true)
     e = minimum(res)
     @test isapprox(e, -0.66023, atol = 1e-4)
 

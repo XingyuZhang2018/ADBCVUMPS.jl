@@ -1,5 +1,5 @@
 using ADBCVUMPS
-using ADBCVUMPS:num_grad, safetr
+using ADBCVUMPS:num_grad
 using BCVUMPS:model_tensor,qrpos,lqpos,Ising,Ising22
 using BCVUMPS:leftorth,leftenv,rightorth,rightenv,ACenv,Cenv,LRtoC,ALCtoAC,ACCtoALAR,obs2x2FL,obs2x2FR
 using ChainRulesCore
@@ -77,9 +77,9 @@ end
     function foo(x)
         C = A * x
         D = B * x
-        E = ein"abc,abd -> cd"(C,C)
-        F = ein"ab,ac -> bc"(D,D)
-        return safetr(E)/safetr(F)
+        E = ein"abc,abc -> "(C,C)
+        F = ein"ab,ab -> "(D,D)
+        return Array(E)[]/Array(F)[]
     end 
     @time @test Zygote.gradient(foo, 1)[1] ≈ num_grad(foo, 1) atol = 1e-8
 end
@@ -102,9 +102,9 @@ end
         _, FL = leftenv(AL, M)
         s = 0
         for j in 1:Nj, i in 1:Ni
-            A = ein"γcη,ηcγαaβ,daα -> βd"(FL[i,j], S[i,j], FL[i,j])
-            B = ein"γcη,ηca -> γa"(FL[i,j], FL[i,j])
-            s += safetr(A)/safetr(B)
+            A = ein"(γcη,ηcγαaβ),βaα -> "(FL[i,j], S[i,j], FL[i,j])
+            B = ein"γcη,ηcγ -> "(FL[i,j], FL[i,j])
+            s += Array(A)[]/Array(B)[]
         end
         return s
     end 
@@ -115,9 +115,9 @@ end
         _, FR = rightenv(AR, M)
         s = 0
         for j in 1:Nj, i in 1:Ni
-            A = ein"γcη,ηcγαaβ,daα -> βd"(FR[i,j], S[i,j], FR[i,j])
-            B = ein"γcη,ηca -> γa"(FR[i,j], FR[i,j])
-            s += safetr(A)/safetr(B)
+            A = ein"(γcη,ηcγαaβ),βaα -> "(FR[i,j], S[i,j], FR[i,j])
+            B = ein"γcη,ηcγ -> "(FR[i,j], FR[i,j])
+            s += Array(A)[]/Array(B)[]
         end
         return s
     end 
@@ -150,9 +150,9 @@ end
         _, AC = ACenv(AC, FL, M, FR)
         s = 0
         for j in 1:Nj, i in 1:Ni
-            A = ein"γcη,ηcγαaβ,daα -> βd"(AC[i,j], S1[i,j], AC[i,j])
-            B = ein"γcη,γca -> ηa"(AC[i,j], AC[i,j])
-            s += safetr(A)/safetr(B)
+            A = ein"(γcη,ηcγαaβ),βaα -> "(AC[i,j], S1[i,j], AC[i,j])
+            B = ein"γcη,γca -> "(AC[i,j], AC[i,j])
+            s += Array(A)[]/Array(B)[]
         end
         return s
     end
@@ -165,9 +165,9 @@ end
         _, C = Cenv(C, FL, FR)
         s = 0
         for j in 1:Nj, i in 1:Ni
-            A = ein"γη,ηγαβ,dα -> βd"(C[i,j], S2[i,j], C[i,j])
-            B = ein"γη,γd -> ηd"(C[i,j], C[i,j])
-            s += safetr(A)/safetr(B)
+            A = ein"(γη,ηγαβ),ηα -> "(C[i,j], S2[i,j], C[i,j])
+            B = ein"γη,γη -> "(C[i,j], C[i,j])
+            s += Array(A)[]/Array(B)[]
         end
         return s
     end
@@ -199,15 +199,15 @@ end
         AL, C, AR = ACCtoALAR(AL, C, AR, M, FL, FR)
         s = 0
         for j in 1:Nj, i in 1:Ni
-            A = ein"γcη,ηcγαaβ,daα -> βd"(AL[i,j], S1[i,j], AL[i,j])
-            B = ein"γcη,γca -> ηa"(AL[i,j], AL[i,j])
-            s += safetr(A)/safetr(B)
-            A = ein"γcη,ηcγαaβ,daα -> βd"(AR[i,j], S1[i,j], AR[i,j])
-            B = ein"γcη,γca -> ηa"(AR[i,j], AR[i,j])
-            s += safetr(A)/safetr(B)
-            A = ein"γη,ηγαβ,dα -> βd"(C[i,j], S2[i,j], C[i,j])
-            B = ein"γη,γd -> ηd"(C[i,j], C[i,j])
-            s += safetr(A)/safetr(B)
+            A = ein"(γcη,ηcγαaβ),βaα -> "(AL[i,j], S1[i,j], AL[i,j])
+            B = ein"γcη,γcη -> "(AL[i,j], AL[i,j])
+            s += Array(A)[]/Array(B)[]
+            A = ein"(γcη,ηcγαaβ),βaα -> "(AR[i,j], S1[i,j], AR[i,j])
+            B = ein"γcη,γcη -> "(AR[i,j], AR[i,j])
+            s += Array(A)[]/Array(B)[]
+            A = ein"(γη,ηγαβ),βα -> "(C[i,j], S2[i,j], C[i,j])
+            B = ein"γη,γη -> "(C[i,j], C[i,j])
+            s += Array(A)[]/Array(B)[]
         end
         return s
     end
@@ -232,9 +232,9 @@ end
         _, FL = obs2x2FL(AL, M)
         s = 0
         for j in 1:Nj, i in 1:Ni
-            A = ein"γcη,ηcγαaβ,daα -> βd"(FL[i,j], S[i,j], FL[i,j])
-            B = ein"γcη,ηca -> γa"(FL[i,j], FL[i,j])
-            s += safetr(A)/safetr(B)
+            A = ein"(γcη,ηcγαaβ),βaα -> "(FL[i,j], S[i,j], FL[i,j])
+            B = ein"γcη,ηcγ -> "(FL[i,j], FL[i,j])
+            s += Array(A)[]/Array(B)[]
         end
         return s
     end 
@@ -245,9 +245,9 @@ end
         _, FR = obs2x2FL(AR, M)
         s = 0
         for j in 1:Nj, i in 1:Ni
-            A = ein"γcη,ηcγαaβ,daα -> βd"(FR[i,j], S[i,j], FR[i,j])
-            B = ein"γcη,ηca -> γa"(FR[i,j], FR[i,j])
-            s += safetr(A)/safetr(B)
+            A = ein"(γcη,ηcγαaβ),βaα -> "(FR[i,j], S[i,j], FR[i,j])
+            B = ein"γcη,ηcγ -> "(FR[i,j], FR[i,j])
+            s += Array(A)[]/Array(B)[]
         end
         return s
     end 

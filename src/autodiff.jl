@@ -103,15 +103,15 @@ function dAMmap(Ai, Aip, Mi, L, R, j, J)
     R = copy(R)
     for jj = 1:NL
         jr = j + jj - 1 - (j + jj - 1 > Nj) * Nj
-        L = ein"abc,cde,bfhd,afg -> ghe"(L, Ai[jr], Mi[jr], conj(Aip[jr]))
+        L = ein"((abc,cde),bfhd),afg -> ghe"(L, Ai[jr], Mi[jr], conj(Aip[jr]))
     end
     for jj = 1:NR
         jr = j - jj + (j - jj < 1) * Nj
-        R = ein"abc,eda,hfbd,gfc -> ehg"(R, Ai[jr], Mi[jr], conj(Aip[jr]))
+        R = ein"((abc,eda),hfbd),gfc -> ehg"(R, Ai[jr], Mi[jr], conj(Aip[jr]))
     end
-    dAiJ = -ein"γcη,csap,γsα,βaα -> ηpβ"(L, Mi[J], conj(Aip[J]), R)
-    dAipJ = -ein"γcη,csap,ηpβ,βaα -> γsα"(L, Mi[J], Ai[J], R)
-    dMiJ = -ein"γcη,ηpβ,γsα,βaα -> csap"(L, Ai[J], conj(Aip[J]), R)
+    dAiJ = -ein"γcη,(csap,(γsα,βaα)) -> ηpβ"(L, Mi[J], conj(Aip[J]), R)
+    dAipJ = -ein"γcη,(csap,(ηpβ,βaα)) -> γsα"(L, Mi[J], Ai[J], R)
+    dMiJ = -ein"(γcη,ηpβ),(γsα,βaα) -> csap"(L, Ai[J], conj(Aip[J]), R)
     return dAiJ, dAipJ, dMiJ
 end
 
@@ -195,7 +195,7 @@ function ACdmap(ACij, FLj, FRj, Mj, II)
     ACdm = copy(ACij)
     for i=1:Ni
         ir = II-(i-1) + (II-(i-1) < 1)*Ni
-        ACdm = ein"αaγ,αsβ,asbp,ηbβ -> γpη"(FLj[ir],ACdm,Mj[ir],FRj[ir])
+        ACdm = ein"((αaγ,αsβ),asbp),ηbβ -> γpη"(FLj[ir],ACdm,Mj[ir],FRj[ir])
     end
     return ACdm
 end
@@ -249,15 +249,15 @@ function ACdFMmap(FLj, Mj, FRj, AC, ACd, i, II)
     ACd = copy(ACd)
     for ii = 1:Nu
         ir = i + ii - 1 - (i + ii - 1 > Ni) * Ni
-        AC = ein"abc,cde,bhfd,efg -> ahg"(FLj[ir], AC, Mj[ir], FRj[ir])
+        AC = ein"((abc,cde),bhfd),efg -> ahg"(FLj[ir], AC, Mj[ir], FRj[ir])
     end
     for ii = 1:Nd
         ir = i - ii + (i - ii < 1) * Ni
-        ACd = ein"αaγ,αsβ,asbp,ηbβ -> γpη"(FLj[ir], ACd, Mj[ir], FRj[ir])
+        ACd = ein"((αaγ,αsβ),asbp),ηbβ -> γpη"(FLj[ir], ACd, Mj[ir], FRj[ir])
     end
-    dFLIj = -ein"ηpβ,βaα,csap,γsα -> γcη"(AC, FRj[II], Mj[II], ACd)
-    dMIj = -ein"γcη,ηpβ,γsα,βaα -> csap"(FLj[II], AC, ACd, FRj[II])
-    dFRIj = -ein"ηpβ,γcη,csap,γsα -> βaα"(AC, FLj[II], Mj[II], ACd)
+    dFLIj = -ein"((ηpβ,βaα),csap),γsα -> γcη"(AC, FRj[II], Mj[II], ACd)
+    dMIj = -ein"(γcη,ηpβ),(γsα,βaα) -> csap"(FLj[II], AC, ACd, FRj[II])
+    dFRIj = -ein"((ηpβ,γcη),csap),γsα -> βaα"(AC, FLj[II], Mj[II], ACd)
     return dFLIj, dMIj, dFRIj
 end
 
@@ -311,7 +311,7 @@ function Cdmap(Cij, FLjp, FRj, II)
     Cdm = copy(Cij)
     for i=1:Ni
         ir = II-(i-1) + (II-(i-1) < 1)*Ni
-        Cdm = ein"αaγ,αβ,ηaβ -> γη"(FLjp[ir],Cdm,FRj[ir])
+        Cdm = ein"(αaγ,αβ),ηaβ -> γη"(FLjp[ir],Cdm,FRj[ir])
     end
     return Cdm
 end
@@ -353,14 +353,14 @@ function CdFMmap(FLjp, FRj, C, Cd, i, II)
     Cd = copy(Cd)
     for ii = 1:Nu
         ir = i + ii - 1 - (i + ii - 1 > Ni) * Ni
-        C = ein"αaγ,γη,ηaβ -> αβ"(FLjp[ir], C, FRj[ir])
+        C = ein"(αaγ,γη),ηaβ -> αβ"(FLjp[ir], C, FRj[ir])
     end
     for ii = 1:Nd
         ir = i - ii + (i - ii < 1) * Ni
-        Cd = ein"αaγ,αβ,ηaβ -> γη"(FLjp[ir], Cd, FRj[ir])
+        Cd = ein"(αaγ,αβ),ηaβ -> γη"(FLjp[ir], Cd, FRj[ir])
     end
-    dFLIjp = -ein"ηβ,βaα,γα -> γaη"(C, FRj[II], Cd)
-    dFRIj = -ein"ηβ,γcη,γα -> βcα"(C, FLjp[II], Cd)
+    dFLIjp = -ein"(ηβ,βaα),γα -> γaη"(C, FRj[II], Cd)
+    dFRIj = -ein"(ηβ,γcη),γα -> βcα"(C, FLjp[II], Cd)
     return dFLIjp, dFRIj
 end
 
