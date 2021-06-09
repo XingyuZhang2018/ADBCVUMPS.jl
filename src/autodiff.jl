@@ -1,17 +1,16 @@
-using ChainRulesCore
-using LinearAlgebra
-using KrylovKit
 using BCVUMPS
-using BCVUMPS:qrpos,lqpos,leftenv,rightenv,FLmap,FRmap,ACenv,Cenv,ACmap,Cmap,ALCtoAC,obs2x2FL,obs2x2FR
+using BCVUMPS:qrpos,lqpos,leftenv,rightenv,FLmap,FRmap,ACenv,Cenv,ACmap,Cmap,ALCtoAC,obs_FL,obs_FR
+using ChainRulesCore
 using FileIO
 using JLD2
+using KrylovKit
+using LinearAlgebra
 using Zygote
 
 Zygote.@nograd BCVUMPS.StopFunction
 Zygote.@nograd BCVUMPS.error
 Zygote.@nograd BCVUMPS.FLint
 Zygote.@nograd BCVUMPS.FRint
-# Zygote.@nograd BCVUMPS._initializect_square
 Zygote.@nograd BCVUMPS.leftorth
 Zygote.@nograd BCVUMPS.rightorth
 Zygote.@nograd BCVUMPS.ALCtoAC
@@ -89,7 +88,7 @@ dAᵢJ    =     Lᵢⱼ ─ Mᵢⱼ  ── ... ── dMᵢJ  ──── ... 
 
                ┌──  Aᵢⱼ  ── ... ── AᵢJ  ────  ...  ──┐ 
                │     │              │                │ 
-Aᵢ₊₁J   =     Lᵢⱼ ─ Mᵢⱼ  ── ... ── dMᵢJ ────  ...  ──Rᵢⱼ
+dAᵢ₊₁J   =     Lᵢⱼ ─ Mᵢⱼ  ── ... ── dMᵢJ ────  ...  ──Rᵢⱼ
                │     │              │                │ 
                └──  Aᵢ₊₁ⱼ  ─... ──     ─────  ...  ──┘ 
 
@@ -393,60 +392,54 @@ function ChainRulesCore.rrule(::typeof(Cenv), C, FL, FR; kwargs...)
     return (λC, C), back
 end
 
-function ChainRulesCore.rrule(::typeof(obs2x2FL), AL, M, FL; kwargs...)
-    λL, FL = obs2x2FL(AL, M, FL)
-    Ni, Nj = size(AL)
-    T = eltype(AL[1,1])
+function ChainRulesCore.rrule(::typeof(obs_FL), ALu, ALd, M, FL; kwargs...)
+    λL, FL = obs_FL(ALu, ALd, M, FL)
+    Ni, Nj = size(ALu)
+    T = eltype(ALu[1,1])
     atype = _arraytype(M[1,1])
     function back((dλL, dFL))
-        dAL = fill!(similar(AL, atype), atype(zeros(T,size(AL[1,1]))))
+        dALu = fill!(similar(ALu, atype), atype(zeros(T,size(ALu[1,1]))))
+        dALd = fill!(similar(ALd, atype), atype(zeros(T,size(ALd[1,1]))))
         dM = fill!(similar(M, atype), atype(zeros(T,size(M[1,1]))))
         for j = 1:Nj, i = 1:Ni
-            if dFL[i,j] === nothing
-                dFL[i,j] = atype(zeros(T, size(FL[i,j])))
-            end
+            ir = Ni + 1 - i
             jr = j - 1 + Nj * (j == 1)
-            ξl, info = linsolve(FR -> FRmap(AL[i,:], AL[i,:], M[i,:], FR, jr), permutedims(dFL[i,j], (3, 2, 1)), -λL[i,j], 1)
-            # errL = ein"abc,cba ->"(FL[i,j], ξl)[]
-            # abs(errL) > 1e-1 && throw("FL and ξl aren't orthometric. $(errL) $(info)")
-            # @show info ein"abc,cba ->"(FL[i,j], ξl)[] ein"abc,abc -> "(FL[i,j], dFL[i,j])[]
+            ξl, info = linsolve(FR -> FRmap(ALu[i,:], ALd[ir,:], M[i,:], FR, jr), permutedims(dFL[i,j], (3, 2, 1)), -λL[i,j], 1)
+            @assert info.converged == 1
             for J = 1:Nj
-                dAiJ, dAipJ, dMiJ = dAMmap(AL[i,:], AL[i,:], M[i,:], FL[i,j], ξl, j, J)
-                dAL[i,J] += dAiJ
-                dAL[i,J] += dAipJ
+                dAiJ, dAipJ, dMiJ = dAMmap(ALu[i,:], ALd[ir,:], M[i,:], FL[i,j], ξl, j, J)
+                dALu[i,J] += dAiJ
+                dALd[ir,J] += dAipJ
                 dM[i,J] += dMiJ
             end
         end
-        return NO_FIELDS, dAL, dM, NO_FIELDS...
+        return NO_FIELDS, dALu, dALd, dM, NO_FIELDS...
     end
     return (λL, FL), back
 end
 
-function ChainRulesCore.rrule(::typeof(obs2x2FR), AR, M, FR; kwargs...)
-    λR, FR = obs2x2FR(AR, M, FR)
-    Ni, Nj = size(AR)
-    T = eltype(AR[1,1])
+function ChainRulesCore.rrule(::typeof(obs_FR), ARu, ARd, M, FR; kwargs...)
+    λR, FR = obs_FR(ARu, ARd, M, FR)
+    Ni, Nj = size(ARu)
+    T = eltype(ARu[1,1])
     atype = _arraytype(M[1,1])
     function back((dλ, dFR))
-        dAR = fill!(similar(AR, atype), atype(zeros(T,size(AR[1,1]))))
+        dARu = fill!(similar(ARu, atype), atype(zeros(T,size(ARu[1,1]))))
+        dARd = fill!(similar(ARd, atype), atype(zeros(T,size(ARd[1,1]))))
         dM = fill!(similar(M, atype), atype(zeros(T,size(M[1,1]))))
         for j = 1:Nj, i = 1:Ni
+            ir = Ni + 1 - i
             jr = j - 1 + Nj * (j == 1)
-            if dFR[i,jr] === nothing
-                dFR[i,jr] = atype(zeros(T, size(FR[i,j])))
-            end
-            ξr, info = linsolve(FL -> FLmap(AR[i,:], AR[i,:], M[i,:], FL, j), permutedims(dFR[i,jr], (3, 2, 1)), -λR[i,jr], 1)
-            # errR = ein"abc,cba ->"(ξr, FR[i,jr])[]
-            # abs(errR) > 1e-1 && throw("FR and ξr aren't orthometric. $(errR) $(info)")
-            # @show info ein"abc,cba ->"(ξr, FR[i,jr])[] ein"abc,abc -> "(FR[i,jr], dFR[i,jr])[]
+            ξr, info = linsolve(FL -> FLmap(ARu[i,:], ARd[ir,:], M[i,:], FL, j), permutedims(dFR[i,jr], (3, 2, 1)), -λR[i,jr], 1)
+            @assert info.converged == 1
             for J = 1:Nj
-                dAiJ, dAipJ, dMiJ = dAMmap(AR[i,:], AR[i,:], M[i,:], ξr, FR[i,jr], j, J)
-                dAR[i,J] += dAiJ
-                dAR[i,J] += dAipJ
+                dAiJ, dAipJ, dMiJ = dAMmap(ARu[i,:], ARd[ir,:], M[i,:], ξr, FR[i,jr], j, J)
+                dARu[i,J] += dAiJ
+                dARd[ir,J] += dAipJ
                 dM[i,J] += dMiJ
             end
         end
-        return NO_FIELDS, dAR, dM, NO_FIELDS...
+        return NO_FIELDS, dARu, dARd, dM, NO_FIELDS...
     end
     return (λR, FR), back
 end

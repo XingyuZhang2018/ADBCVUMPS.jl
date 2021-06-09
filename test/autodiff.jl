@@ -1,7 +1,7 @@
 using ADBCVUMPS
 using ADBCVUMPS:num_grad
 using BCVUMPS:model_tensor,qrpos,lqpos,Ising,Ising22
-using BCVUMPS:leftorth,leftenv,rightorth,rightenv,ACenv,Cenv,LRtoC,ALCtoAC,ACCtoALAR,obs2x2FL,obs2x2FR
+using BCVUMPS:leftorth,leftenv,rightorth,rightenv,ACenv,Cenv,LRtoC,ALCtoAC,ACCtoALAR,obs_FL,obs_FR
 using ChainRulesCore
 using CUDA
 using LinearAlgebra
@@ -214,7 +214,7 @@ end
     @test isapprox(Zygote.gradient(foo1, 1)[1], num_grad(foo1, 1), atol=1e-4)
 end
 
-@testset "obs2x2 leftenv and rightenv with $atype{$dtype}" for atype in [Array, CuArray], dtype in [Float64], Ni = [2], Nj = [2]
+@testset "observable leftenv and rightenv with $atype{$dtype}" for atype in [Array], dtype in [Float64], Ni = [2], Nj = [2]
     Random.seed!(50)
     D, d = 3, 2
     A = Array{atype{dtype,3},2}(undef, Ni, Nj)
@@ -229,7 +229,7 @@ end
 
     function foo3(β)
         M = model_tensor(Ising(Ni, Nj), β; atype = atype)
-        _, FL = obs2x2FL(AL, M)
+        _,FL = obs_FL(AL, AL, M)
         s = 0
         for j in 1:Nj, i in 1:Ni
             A = ein"(γcη,ηcγαaβ),βaα -> "(FL[i,j], S[i,j], FL[i,j])
@@ -242,7 +242,7 @@ end
 
     function foo4(β)
         M = model_tensor(Ising(Ni, Nj), β; atype = atype)
-        _, FR = obs2x2FL(AR, M)
+        _,FR = obs_FR(AR, AR, M)
         s = 0
         for j in 1:Nj, i in 1:Ni
             A = ein"(γcη,ηcγαaβ),βaα -> "(FR[i,j], S[i,j], FR[i,j])
