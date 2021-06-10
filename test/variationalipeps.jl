@@ -50,12 +50,12 @@ CUDA.allowscalar(false)
     # end
     # @test grad != Nothing
 
-    hdiag = [0.3,-0.43]
-    model = diaglocal(Ni,Nj,hdiag)
-    bcipeps, key = init_ipeps(model; atype = atype, D=2, χ=4, tol=1e-10, maxiter=20)
-    res = optimiseipeps(bcipeps, key; f_tol = 1e-6, verbose = true)
-    e = minimum(res)/2
-    @test isapprox(e, minimum(hdiag), atol=1e-3)
+    # hdiag = [0.3,-0.43]
+    # model = diaglocal(Ni,Nj,hdiag)
+    # bcipeps, key = init_ipeps(model; atype = atype, D=2, χ=4, tol=1e-10, maxiter=20)
+    # res = optimiseipeps(bcipeps, key; f_tol = 1e-6, verbose = true)
+    # e = minimum(res)/2
+    # @test isapprox(e, minimum(hdiag), atol=1e-3)
 end
 
 @testset "gradient" for Ni = [2], Nj = [2]
@@ -130,4 +130,13 @@ end
     # res = optimiseipeps(bcipeps, key; f_tol = 1e-6)
     # e = minimum(res)
     # @test isapprox(e, -1.0208, atol = 1e-3)
+end
+
+@testset "Kitaev with $atype{$dtype}" for atype in [Array], dtype in [Float64], Ni = [2], Nj = [2]
+    Random.seed!(100)
+    model = Kitaev(-1.0,-1.0,-1.0)
+    bcipeps, key = init_ipeps(model; atype = atype, D=2, χ=20, tol=1e-10, maxiter=10)
+    res = optimiseipeps(bcipeps, key; f_tol = 1e-10, opiter = 100, verbose = true)
+    e = minimum(res)
+    @show e
 end

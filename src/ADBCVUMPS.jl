@@ -1,14 +1,14 @@
 module ADBCVUMPS
 
-using Zygote
-using OMEinsum
 using BCVUMPS
 using BCVUMPS: HamiltonianModel
 using BCVUMPS: _mattype, _arraytype
+using OMEinsum
+using Zygote
 
 export num_grad
-export TFIsing, Heisenberg
 export hamiltonian, HamiltonianModel
+export TFIsing, Heisenberg, Kitaev
 export init_ipeps, energy, optimiseipeps
 
 include("hamiltonianmodels.jl")

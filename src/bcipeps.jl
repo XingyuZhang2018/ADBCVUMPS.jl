@@ -54,3 +54,18 @@ function symmetrize(x)
     x += permutedims(x, (4,3,2,1,5)) # rotation
     x / norm(x)
 end
+
+function indexperm_trisymmetrize(bcipeps::SquareBCIPEPS)
+    bulk = reshape([trisymmetrize(bcipeps.bulk[i]) for i = 1:4], (2, 2))
+    return SquareBCIPEPS(bulk)
+end
+
+function trisymmetrize(bulk)
+    bulktem = copy(bulk)
+    bulk += permutedims(bulktem, (1,3,2,4,5))
+    bulk += permutedims(bulktem, (2,1,3,4,5))
+    bulk += permutedims(bulktem, (2,3,1,4,5))
+    bulk += permutedims(bulktem, (3,1,2,4,5))
+    bulk += permutedims(bulktem, (3,2,1,4,5))
+    bulk / norm(bulk)
+end

@@ -1,7 +1,7 @@
 using ADBCVUMPS
 using ADBCVUMPS:num_grad
 using BCVUMPS:model_tensor,qrpos,lqpos,Ising,Ising22
-using BCVUMPS:leftorth,leftenv,rightorth,rightenv,ACenv,Cenv,LRtoC,ALCtoAC,ACCtoALAR,obs2x2FL,obs2x2FR
+using BCVUMPS:leftorth,leftenv,rightorth,rightenv,ACenv,Cenv,LRtoC,ALCtoAC,ACCtoALAR,obs2x2FL,obs2x2FR,bigleftenv,bigrightenv
 using ChainRulesCore
 using CUDA
 using LinearAlgebra
@@ -247,6 +247,46 @@ end
         for j in 1:Nj, i in 1:Ni
             A = ein"(γcη,ηcγαaβ),βaα -> "(FR[i,j], S[i,j], FR[i,j])
             B = ein"γcη,ηcγ -> "(FR[i,j], FR[i,j])
+            s += Array(A)[]/Array(B)[]
+        end
+        return s
+    end 
+    @test isapprox(Zygote.gradient(foo4, 1)[1], num_grad(foo4, 1), atol=1e-8)
+end
+
+@testset "bigleftenv and bigrightenv with $atype{$dtype}" for atype in [Array], dtype in [Float64], Ni = [2], Nj = [2]
+    Random.seed!(100)
+    D, d = 3, 2
+    A = Array{atype{dtype,3},2}(undef, Ni, Nj)
+    S = Array{atype{dtype,8},2}(undef, Ni, Nj)
+    for j in 1:Nj, i in 1:Ni
+        A[i,j] = atype(rand(dtype, D, d, D))
+        S[i,j] = atype(rand(dtype, D,d,d,D,D,d,d,D))
+    end
+
+    AL, = leftorth(A) 
+    _, AR, = rightorth(A)
+
+    function foo3(β)
+        M = model_tensor(Ising(Ni, Nj), β; atype = atype)
+        _, FL4 = bigleftenv(AL, M)
+        s = 0
+        for j in 1:Nj, i in 1:Ni
+            A = ein"(abcd,abcdefgh),efgh -> "(FL4[i,j], S[i,j], FL4[i,j])
+            B = ein"abcd,abcd -> "(FL4[i,j], FL4[i,j])
+            s += Array(A)[]/Array(B)[]
+        end
+        return s
+    end 
+    @test isapprox(Zygote.gradient(foo3, 1)[1], num_grad(foo3, 1), atol=1e-8)
+
+    function foo4(β)
+        M = model_tensor(Ising(Ni, Nj), β; atype = atype)
+        _, FR4 = bigrightenv(AR, M)
+        s = 0
+        for j in 1:Nj, i in 1:Ni
+            A = ein"(abcd,abcdefgh),efgh -> "(FR4[i,j], S[i,j], FR4[i,j])
+            B = ein"abcd,abcd -> "(FR4[i,j], FR4[i,j])
             s += Array(A)[]/Array(B)[]
         end
         return s

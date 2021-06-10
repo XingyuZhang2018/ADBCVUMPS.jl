@@ -1,6 +1,6 @@
 using Test
 using ADBCVUMPS
-using ADBCVUMPS:indexperm_symmetrize
+using ADBCVUMPS:indexperm_symmetrize, trisymmetrize
 using LinearAlgebra
 
 @testset "$(Ni)x$(Nj) bcipeps" for Nj = 1:3, Ni = 1:3
@@ -21,4 +21,15 @@ using LinearAlgebra
             permutedims(bcipeps.bulk[i,j], (2,1,4,3,5)) == # diagonal
             permutedims(bcipeps.bulk[i,j], (4,3,2,1,5))    # rotation
     end
+end
+
+@testset "trisymmetrize bcipeps" begin
+    bulk = rand(2,2,2,2,2)
+    
+    bulk = trisymmetrize(bulk)
+    @test bulk ≈  permutedims(bulk, (1,3,2,4,5)) ≈
+                  permutedims(bulk, (2,1,3,4,5)) ≈
+                  permutedims(bulk, (2,3,1,4,5)) ≈
+                  permutedims(bulk, (3,1,2,4,5)) ≈
+                  permutedims(bulk, (3,2,1,4,5))    
 end
