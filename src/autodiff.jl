@@ -55,7 +55,7 @@ function ChainRulesCore.rrule(::typeof(qrpos), A::AbstractArray{T,2}) where {T}
     Q, R = qrpos(A)
     function back((dQ, dR))
         M = Array(R * dR' - dQ' * Q)
-        dA = (UpperTriangular(R + I * 1e-6) \ (dQ + Q * _arraytype(Q)(Symmetric(M, :L)))' )'
+        dA = (UpperTriangular(R + I * 1e-12) \ (dQ + Q * _arraytype(Q)(Symmetric(M, :L)))' )'
         return NO_FIELDS, dA
     end
     return (Q, R), back
@@ -65,7 +65,7 @@ function ChainRulesCore.rrule(::typeof(lqpos), A::AbstractArray{T,2}) where {T}
     L, Q = lqpos(A)
     function back((dL, dQ))
         M = Array(L' * dL - dQ * Q')
-        dA = LowerTriangular(L + I * 1e-6)' \ (dQ + _arraytype(Q)(Symmetric(M, :L)) * Q)
+        dA = LowerTriangular(L + I * 1e-12)' \ (dQ + _arraytype(Q)(Symmetric(M, :L)) * Q)
         return NO_FIELDS, dA
     end
     return (L, Q), back
@@ -394,15 +394,16 @@ function ChainRulesCore.rrule(::typeof(Cenv), C, FL, FR; kwargs...)
     return (λC, C), back
 end
 
-function ChainRulesCore.rrule(::typeof(obs2x2FL), AL, M, FL; kwargs...)
-    λL, FL = obs2x2FL(AL, M, FL)
+function ChainRulesCore.rrule(::typeof(obs2x2FL), AL, AR, M, FL; kwargs...)
+    λL, FL = obs2x2FL(AL, AR, M, FL)
     Ni, Nj = size(AL)
     T = eltype(AL[1,1])
     atype = _arraytype(M[1,1])
-    ALd = reshape([permutedims(AL[i], (3, 2, 1)) for i = 1:4], (2,2))
+    ALd = reshape([permutedims(AR[i], (3, 2, 1)) for i = 1:4], (2,2))
     function back((dλL, dFL))
         dAL = fill!(similar(AL, atype), atype(zeros(T,size(AL[1,1]))))
         dM = fill!(similar(M, atype), atype(zeros(T,size(M[1,1]))))
+        dAR = fill!(similar(AR, atype), atype(zeros(T,size(AR[1,1]))))
         for j = 1:Nj, i = 1:Ni
             if dFL[i,j] === nothing
                 dFL[i,j] = atype(zeros(T, size(FL[i,j])))
@@ -416,24 +417,25 @@ function ChainRulesCore.rrule(::typeof(obs2x2FL), AL, M, FL; kwargs...)
             for J = 1:Nj
                 dAiJ, dAipJ, dMiJ = dAMmap(AL[i,:], ALd[ir,:], M[i,:], FL[i,j], ξl, j, J)
                 dAL[i,J] += dAiJ
-                dAL[i,J] += dAipJ
+                dAR[ir,J] += permutedims(dAipJ, (3, 2, 1))
                 dM[i,J] += dMiJ
             end
         end
-        return NO_FIELDS, dAL, dM, NO_FIELDS...
+        return NO_FIELDS, dAL, dAR, dM, NO_FIELDS...
     end
     return (λL, FL), back
 end
 
-function ChainRulesCore.rrule(::typeof(obs2x2FR), AR, M, FR; kwargs...)
-    λR, FR = obs2x2FR(AR, M, FR)
+function ChainRulesCore.rrule(::typeof(obs2x2FR), AR, AL, M, FR; kwargs...)
+    λR, FR = obs2x2FR(AR, AL, M, FR)
     Ni, Nj = size(AR)
     T = eltype(AR[1,1])
     atype = _arraytype(M[1,1])
-    ARd = reshape([permutedims(AR[i], (3, 2, 1)) for i = 1:4], (2,2))
+    ARd = reshape([permutedims(AL[i], (3, 2, 1)) for i = 1:4], (2,2))
     function back((dλ, dFR))
         dAR = fill!(similar(AR, atype), atype(zeros(T,size(AR[1,1]))))
         dM = fill!(similar(M, atype), atype(zeros(T,size(M[1,1]))))
+        dAL = fill!(similar(AL, atype), atype(zeros(T,size(AL[1,1]))))
         for j = 1:Nj, i = 1:Ni
             ir = Ni + 1 - i
             jr = j - 1 + Nj * (j == 1)
@@ -447,11 +449,11 @@ function ChainRulesCore.rrule(::typeof(obs2x2FR), AR, M, FR; kwargs...)
             for J = 1:Nj
                 dAiJ, dAipJ, dMiJ = dAMmap(AR[i,:], ARd[ir,:], M[i,:], ξr, FR[i,jr], j, J)
                 dAR[i,J] += dAiJ
-                dAR[i,J] += dAipJ
+                dAL[ir,J] += permutedims(dAipJ, (3, 2, 1))
                 dM[i,J] += dMiJ
             end
         end
-        return NO_FIELDS, dAR, dM, NO_FIELDS...
+        return NO_FIELDS, dAR, dAL, dM, NO_FIELDS...
     end
     return (λR, FR), back
 end
@@ -509,73 +511,73 @@ function dBgAMmap(Ai, Aip, Mi, Mip, L, R, j, J)
         jr = j - jj + (j - jj < 1) * Nj
         R = ein"(((cehk,abc),dfeb),gjhf),ijk -> adgi"(R, Ai[jr], Mi[jr], Mip[jr], conj(Aip[jr]))
     end
-    dAiJ = -ein"(((adgi,ijk),gjhf),dfeb), cehk -> abc"(L, conj(Aip[J]), Mip[J], Mi[J], R)
+    dAiJ = -ein"(((adgi,ijk),gjhf),dfeb), cehk -> abc"(L, Aip[J], Mip[J], Mi[J], R)
     dAipJ = -ein"(((adgi,abc),dfeb),gjhf), cehk -> ijk"(L, Ai[J], Mi[J], Mip[J], R)
     dMiJ = -ein"(adgi,abc),(gjhf,(ijk,cehk)) -> dfeb"(L, Ai[J], Mip[J], Aip[J], R)
     dMipJ = -ein"((adgi,abc),dfeb),(ijk,cehk)-> gjhf"(L, Ai[J], Mi[J], Aip[J], R)
     return dAiJ, dAipJ, dMiJ, dMipJ
 end
 
-function ChainRulesCore.rrule(::typeof(bigleftenv), AL, M, BgFL; kwargs...)
-    λL, BgFL = bigleftenv(AL, M, BgFL)
+function ChainRulesCore.rrule(::typeof(bigleftenv), AL, AR, M, BgFL; kwargs...)
+    λL, BgFL = bigleftenv(AL, AR, M, BgFL)
     Ni, Nj = size(AL)
     T = eltype(AL[1,1])
     atype = _arraytype(M[1,1])
-    ALd = reshape([permutedims(AL[i], (3, 2, 1)) for i = 1:4], (2,2))
+    ALd = reshape([permutedims(AR[i], (3, 2, 1)) for i = 1:4], (2,2))
     function back((dλL, dBgFL))
         dAL = fill!(similar(AL, atype), atype(zeros(T,size(AL[1,1]))))
         dM = fill!(similar(M, atype), atype(zeros(T,size(M[1,1]))))
+        dAR = fill!(similar(AR, atype), atype(zeros(T,size(AR[1,1]))))
         for j = 1:Nj, i = 1:Ni
-            if dBgFL[i,j] === nothing
-                dBgFL[i,j] = atype(zeros(T, size(BgFL[i,j])))
-            end
-            ir = Ni + 1 - i
-            jr = j - 1 + Nj * (j == 1)
-            ξl, info = linsolve(BgFR -> BgFRmap(AL[i,:], ALd[i,:], M[i,:], M[ir,:], BgFR, jr), dBgFL[i,j], -λL[i,j], 1)
-            # errL = ein"abc,cba ->"(FL[i,j], ξl)[]
-            # abs(errL) > 1e-1 && throw("FL and ξl aren't orthometric. $(errL) $(info)")
-            # @show info ein"abc,cba ->"(FL[i,j], ξl)[] ein"abc,abc -> "(FL[i,j], dFL[i,j])[]
-            for J = 1:Nj
-                dAiJ, dAipJ, dMiJ, dMipJ = dBgAMmap(AL[i,:], ALd[i,:], M[i,:], M[ir,:], BgFL[i,j], ξl, j, J)
-                dAL[i,J] += dAiJ
-                dAL[i,J] += permutedims(dAipJ, (3, 2, 1))
-                dM[i,J] += dMiJ
-                dM[ir,J] += dMipJ
+            if dBgFL[i,j] !== nothing
+                ir = Ni + 1 - i
+                jr = j - 1 + Nj * (j == 1)
+                ξl, info = linsolve(BgFR -> BgFRmap(AL[i,:], ALd[i,:], M[i,:], M[ir,:], BgFR, jr), dBgFL[i,j], -λL[i,j], 1)
+                # errL = ein"abc,cba ->"(FL[i,j], ξl)[]
+                # abs(errL) > 1e-1 && throw("FL and ξl aren't orthometric. $(errL) $(info)")
+                # @show info ein"abc,cba ->"(FL[i,j], ξl)[] ein"abc,abc -> "(FL[i,j], dFL[i,j])[]
+                for J = 1:Nj
+                    dAiJ, dAipJ, dMiJ, dMipJ = dBgAMmap(AL[i,:], ALd[i,:], M[i,:], M[ir,:], BgFL[i,j], ξl, j, J)
+                    dAL[i,J] += dAiJ
+                    dAR[i,J] += permutedims(dAipJ, (3,2,1))
+                    dM[i,J] += dMiJ
+                    dM[ir,J] += dMipJ
+                end
             end
         end
-        return NO_FIELDS, dAL, dM, NO_FIELDS...
+        return NO_FIELDS, dAL, dAR, dM, NO_FIELDS
     end
     return (λL, BgFL), back
 end
 
-function ChainRulesCore.rrule(::typeof(bigrightenv), AR, M, BgFR; kwargs...)
-    λR, BgFR = bigrightenv(AR, M, BgFR)
+function ChainRulesCore.rrule(::typeof(bigrightenv), AR, AL, M, BgFR; kwargs...)
+    λR, BgFR = bigrightenv(AR, AL, M, BgFR)
     Ni, Nj = size(AR)
     T = eltype(AR[1,1])
     atype = _arraytype(M[1,1])
-    ARd = reshape([permutedims(AR[i], (3, 2, 1)) for i = 1:4], (2,2))
+    ARd = reshape([permutedims(AL[i], (3, 2, 1)) for i = 1:4], (2,2))
     function back((dλ, dBgFR))
         dAR = fill!(similar(AR, atype), atype(zeros(T,size(AR[1,1]))))
         dM = fill!(similar(M, atype), atype(zeros(T,size(M[1,1]))))
+        dAL = fill!(similar(AL, atype), atype(zeros(T,size(AL[1,1]))))
         for j = 1:Nj, i = 1:Ni
             ir = Ni + 1 - i
             jr = j - 1 + Nj * (j == 1)
-            if dBgFR[i,jr] === nothing
-                dBgFR[i,jr] = atype(zeros(T, size(BgFR[i,j])))
-            end
-            ξr, info = linsolve(BgFL -> BgFLmap(AR[i,:], ARd[i,:], M[i,:], M[ir,:], BgFL, j), dBgFR[i,jr], -λR[i,jr], 1)
-            # errR = ein"abc,cba ->"(ξr, FR[i,jr])[]
-            # abs(errR) > 1e-1 && throw("FR and ξr aren't orthometric. $(errR) $(info)")
-            # @show info ein"abc,cba ->"(ξr, FR[i,jr])[] ein"abc,abc -> "(FR[i,jr], dFR[i,jr])[]
-            for J = 1:Nj
-                dAiJ, dAipJ, dMiJ, dMipJ = dBgAMmap(AR[i,:], ARd[i,:], M[i,:], M[ir,:], ξr, BgFR[i,jr], j, J)
-                dAR[i,J] += dAiJ
-                dAR[i,J] += permutedims(dAipJ,(3,2,1))
-                dM[i,J] += dMiJ
-                dM[ir,J] += dMipJ
+            if dBgFR[i,jr] !== nothing
+                ξr, info = linsolve(BgFL -> BgFLmap(AR[i,:], ARd[i,:], M[i,:], M[ir,:], BgFL, j), dBgFR[i,jr], -λR[i,jr], 1)
+                # errR = ein"abc,cba ->"(ξr, FR[i,jr])[]
+                # abs(errR) > 1e-1 && throw("FR and ξr aren't orthometric. $(errR) $(info)")
+                # @show info ein"abc,cba ->"(ξr, FR[i,jr])[] ein"abc,abc -> "(FR[i,jr], dFR[i,jr])[]
+                for J = 1:Nj
+                    dAiJ, dAipJ, dMiJ, dMipJ = dBgAMmap(AR[i,:], ARd[i,:], M[i,:], M[ir,:], ξr, BgFR[i,jr], j, J)
+                    dAR[i,J] += dAiJ
+                    dAL[i,J] += permutedims(dAipJ, (3,2,1))
+                    dM[i,J] += dMiJ
+                    dM[ir,J] += dMipJ
+                end
             end
         end
-        return NO_FIELDS, dAR, dM, NO_FIELDS...
+        return NO_FIELDS, dAR, dAL, dM, NO_FIELDS
     end
     return (λR, BgFR), back
 end

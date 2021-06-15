@@ -229,7 +229,7 @@ end
 
     function foo3(β)
         M = model_tensor(Ising(Ni, Nj), β; atype = atype)
-        _, FL = obs2x2FL(AL, M)
+        _, FL = obs2x2FL(AL, AR, M)
         s = 0
         for j in 1:Nj, i in 1:Ni
             A = ein"(γcη,ηcγαaβ),βaα -> "(FL[i,j], S[i,j], FL[i,j])
@@ -242,7 +242,7 @@ end
 
     function foo4(β)
         M = model_tensor(Ising(Ni, Nj), β; atype = atype)
-        _, FR = obs2x2FL(AR, M)
+        _, FR = obs2x2FL(AR, AL, M)
         s = 0
         for j in 1:Nj, i in 1:Ni
             A = ein"(γcη,ηcγαaβ),βaα -> "(FR[i,j], S[i,j], FR[i,j])
@@ -254,7 +254,7 @@ end
     @test isapprox(Zygote.gradient(foo4, 1)[1], num_grad(foo4, 1), atol=1e-8)
 end
 
-@testset "bigleftenv and bigrightenv with $atype{$dtype}" for atype in [Array], dtype in [Float64], Ni = [2], Nj = [2]
+@testset "bigleftenv and bigrightenv with $atype{$dtype}" for atype in [Array, CuArray], dtype in [Float64], Ni = [2], Nj = [2]
     Random.seed!(100)
     D, d = 3, 2
     A = Array{atype{dtype,3},2}(undef, Ni, Nj)
@@ -269,7 +269,7 @@ end
 
     function foo3(β)
         M = model_tensor(Ising(Ni, Nj), β; atype = atype)
-        _, FL4 = bigleftenv(AL, M)
+        _, FL4 = bigleftenv(AL, AR, M)
         s = 0
         for j in 1:Nj, i in 1:Ni
             A = ein"(abcd,abcdefgh),efgh -> "(FL4[i,j], S[i,j], FL4[i,j])
@@ -282,7 +282,7 @@ end
 
     function foo4(β)
         M = model_tensor(Ising(Ni, Nj), β; atype = atype)
-        _, FR4 = bigrightenv(AR, M)
+        _, FR4 = bigrightenv(AR, AL, M)
         s = 0
         for j in 1:Nj, i in 1:Ni
             A = ein"(abcd,abcdefgh),efgh -> "(FR4[i,j], S[i,j], FR4[i,j])

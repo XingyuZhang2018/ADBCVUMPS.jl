@@ -13,7 +13,7 @@ BCVUMPS with parameters `χ`, `tol` and `maxiter`.
 """
 function energy(h, bcipeps::BCIPEPS, oc, key; verbose = false)
     model, atype, _, χ, tol, maxiter = key
-    bcipeps = indexperm_trisymmetrize(bcipeps)  # NOTE: this is not good
+    # bcipeps = indexperm_trisymmetrize(bcipeps)  # NOTE: this is not good
     D = getd(bcipeps)^2
     s = gets(bcipeps)
     bulk = bcipeps.bulk
@@ -46,7 +46,10 @@ end
 
 function optcont(D::Int, χ::Int)
     sd = Dict('n' => D^2, 'f' => χ, 'd' => D^2, 'e' => χ, 'o' => D^2, 'h' => χ, 'j' => χ, 'i' => D^2, 'k' => D^2, 'r' => 2, 's' => 2, 'q' => 2, 'a' => χ, 'c' => χ, 'p' => 2, 'm' => χ, 'g' => D^2, 'l' => χ, 'b' => D^2)
-    optimize_greedy(ein"abc,cde,bnodpq,anm,ef,ml,hij,fgh,okigrs,lkj -> pqrs", sd; method=MinSpaceDiff())
+    oc1 = optimize_greedy(ein"abc,cde,bnodpq,anm,ef,ml,hij,fgh,okigrs,lkj -> pqrs", sd; method=MinSpaceDiff())
+    sd = Dict('a' => χ, 'b' => D^2, 'c' => χ, 'd' => D^2, 'e' => D^2, 'f' => D^2, 'g' => D^2, 'h' => D^2, 'i' => χ, 'j' => D^2, 'k' => χ, 'r' => 2, 's' => 2, 'p' => 2, 'q' => 2, 'l' => χ, 'm' => χ)
+    oc2 = optimize_greedy(ein"adgi,abl,lc,dfebpq,gjhfrs,ijm,mk,cehk -> pqrs", sd; method=MinSpaceDiff())
+    oc1, oc2
 end
 
 """
@@ -58,8 +61,9 @@ a `SquareBCVUMPSRuntime` `env`.
 """
 function expectationvalue(h, ap, env::SquareBCVUMPSRuntime, oc)
     M,AL,C,AR,FL,FR = env.M,env.AL,env.C,env.AR,env.FL,env.FR
-    _, FL = obs2x2FL(AL, M, FL)
-    _, FR = obs2x2FR(AR, M, FR)
+    oc1, oc2 = oc
+    _, FL = obs2x2FL(AL, AR, M, FL)
+    _, FR = obs2x2FR(AR, AL, M, FR)
     Ni,Nj = size(M)
     # Ni,Nj = 1,2
     ap /= norm(ap)
@@ -73,24 +77,25 @@ function expectationvalue(h, ap, env::SquareBCVUMPSRuntime, oc)
         end
         ir = Ni + 1 - i
         jr = j + 1 - (j==Nj) * Nj
-        lr = oc(FL[i,j],AL[i,j],ap[i,j],permutedims(AL[ir,j],(3,2,1)),C[i,j],permutedims(C[ir,j],(2,1)),FR[i,jr],AR[i,jr],ap[i,jr],permutedims(AR[ir,jr],(3,2,1)))
+        lr = oc1(FL[i,j],AL[i,j],ap[i,j],permutedims(AR[ir,j],(3,2,1)),C[i,j],permutedims(C[ir,jr],(2,1)),FR[i,jr],AR[i,jr],ap[i,jr],permutedims(AL[ir,jr],(3,2,1)))
         e = ein"pqrs, pqrs -> "(lr,hij)
         n = ein"pprr -> "(lr)
         @show Array(e)[]/Array(n)[]
         etol += Array(e)[]/Array(n)[]
     end
     
-    AC = ALCtoAC(AL,C)
-    _, BgFL = bigleftenv(AL, M)
-    _, BgFR = bigrightenv(AR, M)
+    # AC = ALCtoAC(AL,C)
+    _, BgFL = bigleftenv(AL, AR, M)
+    _, BgFR = bigrightenv(AR, AL, M)
     for j = 1:Nj, i = 1:Ni
         if (i,j) in [(1,1),(2,2)]
             hij = hz
             ir = i + 1 - Ni * (i==Ni)
+            jr = j - 1 + (j==1) * Nj
             # irr = i + 2 - Ni * (i + 2 > Ni)
-            lr = ein"((((adgi,abc),dfebpq),gjhfrs),ijk),cehk -> pqrs"(BgFL[i,j],AC[i,j],ap[i,j],ap[ir,j],permutedims(AC[i,j],(3,2,1)),BgFR[i,j])
-            e2 = ein"pqrs, pqrs -> "(lr,hij)
-            n2 = ein"pprr -> "(lr)
+            lr2 = oc2(BgFL[i,j],AL[i,j],C[i,j],ap[i,j],ap[ir,j],permutedims(AR[i,j],(3,2,1)),permutedims(C[i,jr],(2,1)),BgFR[i,j])
+            e2 = ein"pqrs, pqrs -> "(lr2,hij)
+            n2 = ein"pprr -> "(lr2)
             @show Array(e2)[]/Array(n2)[]
             etol += Array(e2)[]/Array(n2)[]
         end
@@ -100,7 +105,8 @@ function expectationvalue(h, ap, env::SquareBCVUMPSRuntime, oc)
 end
 
 function buildbcipeps(bulk)
-    reshape([bulk,permutedims(bulk, (3,4,1,2,5)),permutedims(bulk, (3,4,1,2,5)),bulk], (2, 2))
+    bulk = trisymmetrize(bulk)
+    SquareBCIPEPS(reshape([bulk,permutedims(bulk, (3,4,1,2,5)),permutedims(bulk, (3,4,1,2,5)),bulk], (2, 2)))
 end
 
 """
@@ -121,8 +127,8 @@ function init_ipeps(model::HamiltonianModel; atype = Array, D::Int, χ::Int, tol
         bulk = rand(D,D,D,D,2)
         verbose && println("random initial BCiPEPS $chkp_file")
     end
-    bcipeps = SquareBCIPEPS(buildbcipeps(bulk))
-    bcipeps = indexperm_trisymmetrize(bcipeps)
+    bcipeps = buildbcipeps(bulk)
+    # bcipeps = indexperm_trisymmetrize(bcipeps)
     return bcipeps, key
 end
 
@@ -141,8 +147,8 @@ function optimiseipeps(bcipeps::BCIPEPS{LT}, key; f_tol = 1e-6, opiter = 100, ve
     h = (atype(hx),atype(hy),atype(hz))
     to = TimerOutput()
     oc = optcont(D, χ)
-    f(x) = @timeit to "forward" real(energy(h, BCIPEPS{LT}(buildbcipeps(atype(x))), oc, key; verbose=verbose))
-    ff(x) = real(energy(h, BCIPEPS{LT}(buildbcipeps(atype(x))), oc, key; verbose=verbose))
+    f(x) = @timeit to "forward" real(energy(h, buildbcipeps(atype(x)), oc, key; verbose=verbose))
+    ff(x) = real(energy(h, buildbcipeps(atype(x)), oc, key; verbose=verbose))
     g(x) = @timeit to "backward" Zygote.gradient(ff,atype(x))[1]
     x0 = bcipeps.bulk[1,1]
     res = optimize(f, g, 

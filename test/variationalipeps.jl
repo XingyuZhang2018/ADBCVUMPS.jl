@@ -1,5 +1,5 @@
 using ADBCVUMPS
-using ADBCVUMPS: energy, num_grad, diaglocal, optcont
+using ADBCVUMPS: energy, num_grad, diaglocal, optcont,buildbcipeps
 using BCVUMPS
 using CUDA
 using LinearAlgebra: norm, svd
@@ -59,17 +59,17 @@ CUDA.allowscalar(false)
 end
 
 @testset "gradient" for Ni = [2], Nj = [2]
-    Random.seed!(0)
-    model = TFIsing(Ni,Nj,1.0)
-    h = hamiltonian(model)
-    bcipeps, key = init_ipeps(model; D=2, χ=4, tol=1e-10, maxiter=20)
-    gradzygote = first(Zygote.gradient(bcipeps) do x
-        energy(h,model,x; χ=4, tol=1e-10, maxiter=20)
-    end).bulk
-    gradnum = num_grad(bcipeps.bulk, δ=1e-3) do x
-        energy(h,model,SquareBCIPEPS(x); χ=4, tol=1e-10, maxiter=20)
-    end
-    @test isapprox(gradzygote, gradnum, atol=1e-3)
+    # Random.seed!(0)
+    # model = TFIsing(Ni,Nj,1.0)
+    # h = hamiltonian(model)
+    # bcipeps, key = init_ipeps(model; D=2, χ=4, tol=1e-10, maxiter=20)
+    # gradzygote = first(Zygote.gradient(bcipeps) do x
+    #     energy(h,model,x; χ=4, tol=1e-10, maxiter=20)
+    # end).bulk
+    # gradnum = num_grad(bcipeps.bulk, δ=1e-3) do x
+    #     energy(h,model,SquareBCIPEPS(x); χ=4, tol=1e-10, maxiter=20)
+    # end
+    # @test isapprox(gradzygote, gradnum, atol=1e-3)
 
     # Random.seed!(3)
     # model = Heisenberg(Ni,Nj)
@@ -82,6 +82,20 @@ end
     #     energy(h,model, SquareBCIPEPS(x); χ=4, tol=1e-10, maxiter=20)
     # end
     # @test isapprox(gradzygote , gradnum, atol=1e-3)
+
+    Random.seed!(100)
+    D,χ = 2, 5
+    model = Kitaev(-1.0,-1.0,-1.0)
+    h = hamiltonian(model)
+    oc = optcont(D, χ)
+    bcipeps, key = init_ipeps(model; D=D, χ=χ, tol=1e-10, maxiter=10)
+    gradzygote = Zygote.gradient(bcipeps.bulk[1,1]) do x
+        energy(h,buildbcipeps(x),oc,key; verbose=true)
+    end
+    gradnum = num_grad(bcipeps.bulk[1,1], δ=1e-4) do x
+        energy(h,buildbcipeps(x),oc,key; verbose=true)
+    end
+    @test isapprox(gradzygote[1], gradnum, atol=1e-5)
 end
 
 @testset "TFIsing" for Ni = [2], Nj = [2]
