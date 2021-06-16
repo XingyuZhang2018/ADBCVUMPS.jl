@@ -1,4 +1,5 @@
-using BCVUMPS
+using Base.Threads
+using BCVUMPS:ktoij
 using BCVUMPS:qrpos,lqpos,leftenv,rightenv,FLmap,FRmap,ACenv,Cenv,ACmap,Cmap,ALCtoAC,obs2x2FL,obs2x2FR,bigleftenv,bigrightenv,BgFLmap,BgFRmap
 using ChainRulesCore
 using FileIO
@@ -122,9 +123,10 @@ function ChainRulesCore.rrule(::typeof(leftenv), AL, M, FL; kwargs...)
     T = eltype(AL[1,1])
     atype = _arraytype(M[1,1])
     function back((dλL, dFL))
-        dAL = fill!(similar(AL, atype), atype(zeros(T,size(AL[1,1]))))
-        dM = fill!(similar(M, atype), atype(zeros(T,size(M[1,1]))))
-        for j = 1:Nj, i = 1:Ni
+        dAL = [fill!(similar(AL, atype), atype(zeros(T,size(AL[1,1])))) for _ = 1:nthreads()]
+        dM = [fill!(similar(M, atype), atype(zeros(T,size(M[1,1])))) for _ = 1:nthreads()]
+        @threads for k = 1:Ni*Nj
+            i,j = ktoij(k, Ni, Nj)
             if dFL[i,j] !== nothing
                 ir = i + 1 - Ni * (i == Ni)
                 jr = j - 1 + Nj * (j == 1)
@@ -134,12 +136,14 @@ function ChainRulesCore.rrule(::typeof(leftenv), AL, M, FL; kwargs...)
                 # @show info ein"abc,cba ->"(FL[i,j], ξl)[] ein"abc,abc -> "(FL[i,j], dFL[i,j])[]
                 for J = 1:Nj
                     dAiJ, dAipJ, dMiJ = dAMmap(AL[i,:], AL[ir,:], M[i,:], FL[i,j], ξl, j, J)
-                    dAL[i,J] += dAiJ
-                    dAL[ir,J] += dAipJ
-                    dM[i,J] += dMiJ
+                    dAL[threadid()][i,J] += dAiJ
+                    dAL[threadid()][ir,J] += dAipJ
+                    dM[threadid()][i,J] += dMiJ
                 end
             end
         end
+        dAL = reduce(+, dAL)
+        dM = reduce(+, dM)
         return NO_FIELDS, dAL, dM, NO_FIELDS...
     end
     return (λL, FL), back
@@ -151,9 +155,10 @@ function ChainRulesCore.rrule(::typeof(rightenv), AR, M, FR; kwargs...)
     T = eltype(AR[1,1])
     atype = _arraytype(M[1,1])
     function back((dλ, dFR))
-        dAR = fill!(similar(AR, atype), atype(zeros(T,size(AR[1,1]))))
-        dM = fill!(similar(M, atype), atype(zeros(T,size(M[1,1]))))
-        for j = 1:Nj, i = 1:Ni
+        dAR = [fill!(similar(AR, atype), atype(zeros(T,size(AR[1,1])))) for _ = 1:nthreads()]
+        dM = [fill!(similar(M, atype), atype(zeros(T,size(M[1,1])))) for _ = 1:nthreads()]
+        @threads for k = 1:Ni*Nj
+            i,j = ktoij(k, Ni, Nj)
             ir = i + 1 - Ni * (i == Ni)
             jr = j - 1 + Nj * (j == 1)
             if dFR[i,jr] !== nothing
@@ -163,12 +168,14 @@ function ChainRulesCore.rrule(::typeof(rightenv), AR, M, FR; kwargs...)
                 # @show info ein"abc,cba ->"(ξr, FR[i,jr])[] ein"abc,abc -> "(FR[i,jr], dFR[i,jr])[]
                 for J = 1:Nj
                     dAiJ, dAipJ, dMiJ = dAMmap(AR[i,:], AR[ir,:], M[i,:], ξr, FR[i,jr], j, J)
-                    dAR[i,J] += dAiJ
-                    dAR[ir,J] += dAipJ
-                    dM[i,J] += dMiJ
+                    dAR[threadid()][i,J] += dAiJ
+                    dAR[threadid()][ir,J] += dAipJ
+                    dM[threadid()][i,J] += dMiJ
                 end
             end
         end
+        dAR = reduce(+, dAR)
+        dM = reduce(+, dM)
         return NO_FIELDS, dAR, dM, NO_FIELDS...
     end
     return (λR, FR), back
@@ -266,10 +273,11 @@ function ChainRulesCore.rrule(::typeof(ACenv), AC, FL, M, FR; kwargs...)
     T = eltype(AC[1,1])
     atype = _arraytype(M[1,1])
     function back((dλ, dAC))
-        dFL = fill!(similar(FL, atype), atype(zeros(T,size(FL[1,1]))))
-        dM = fill!(similar(M, atype), atype(zeros(T,size(M[1,1]))))
-        dFR = fill!(similar(FR, atype), atype(zeros(T,size(FR[1,1]))))
-        for j = 1:Nj, i = 1:Ni
+        dFL = [fill!(similar(FL, atype), atype(zeros(T,size(FL[1,1])))) for _ = 1:nthreads()]
+        dM = [fill!(similar(M, atype), atype(zeros(T,size(M[1,1])))) for _ = 1:nthreads()]
+        dFR = [fill!(similar(FR, atype), atype(zeros(T,size(FR[1,1])))) for _ = 1:nthreads()]
+        @threads for k = 1:Ni*Nj
+            i,j = ktoij(k, Ni, Nj)
             if dAC[i,j] !== nothing
                 ir = i - 1 + Ni * (i == 1)
                 ξAC, info = linsolve(ACd -> ACdmap(ACd, FL[:,j], FR[:,j], M[:,j], ir), dAC[i,j], -λAC[i,j], 1)
@@ -278,12 +286,15 @@ function ChainRulesCore.rrule(::typeof(ACenv), AC, FL, M, FR; kwargs...)
                 # @show info ein"abc,abc ->"(AC[i,j], ξAC)[] ein"abc,abc -> "(AC[i,j], dAC[i,j])[]
                 for II = 1:Ni
                     dFLIj, dMIj, dFRIj = ACdFMmap(FL[:,j], M[:,j], FR[:,j], AC[i,j], ξAC, i, II)
-                    dFL[II,j] += dFLIj
-                    dM[II,j] += dMIj
-                    dFR[II,j] += dFRIj
+                    dFL[threadid()][II,j] += dFLIj
+                    dM[threadid()][II,j] += dMIj
+                    dFR[threadid()][II,j] += dFRIj
                 end
             end
         end
+        dFL = reduce(+, dFL)
+        dM = reduce(+, dM)
+        dFR = reduce(+, dFR)
         return NO_FIELDS, NO_FIELDS, dFL, dM, dFR
     end
     return (λAC, AC), back
@@ -368,9 +379,10 @@ function ChainRulesCore.rrule(::typeof(Cenv), C, FL, FR; kwargs...)
     T = eltype(C[1,1])
     atype = _arraytype(FL[1,1])
     function back((dλ, dC))
-        dFL = fill!(similar(FL, atype), atype(zeros(T,size(FL[1,1]))))
-        dFR = fill!(similar(FR, atype), atype(zeros(T,size(FR[1,1]))))
-        for j = 1:Nj, i = 1:Ni
+        dFL = [fill!(similar(FL, atype), atype(zeros(T,size(FL[1,1])))) for _ = 1:nthreads()]
+        dFR = [fill!(similar(FR, atype), atype(zeros(T,size(FR[1,1])))) for _ = 1:nthreads()]
+        @threads for k = 1:Ni*Nj
+            i,j = ktoij(k, Ni, Nj)
             if dC[i,j] !== nothing
                 ir = i - 1 + Ni * (i == 1)
                 jr = j + 1 - (j==Nj) * Nj
@@ -380,11 +392,13 @@ function ChainRulesCore.rrule(::typeof(Cenv), C, FL, FR; kwargs...)
                 # @show info ein"ab,ab ->"(C[i,j], ξC)[] ein"ab,ab -> "(C[i,j], dC[i,j])[]
                 for II = 1:Ni
                     dFLIjp, dFRIj = CdFMmap(FL[:,jr], FR[:,j], C[i,j], ξC, i, II)
-                    dFL[II,jr] += dFLIjp
-                    dFR[II,j] += dFRIj
+                    dFL[threadid()][II,jr] += dFLIjp
+                    dFR[threadid()][II,j] += dFRIj
                 end
             end
         end
+        dFL = reduce(+, dFL)
+        dFR = reduce(+, dFR)
         return NO_FIELDS, NO_FIELDS, dFL, dFR
     end
     return (λC, C), back
@@ -397,10 +411,11 @@ function ChainRulesCore.rrule(::typeof(obs2x2FL), AL, AR, M, FL; kwargs...)
     atype = _arraytype(M[1,1])
     ALd = reshape([permutedims(AR[i], (3, 2, 1)) for i = 1:4], (2,2))
     function back((dλL, dFL))
-        dAL = fill!(similar(AL, atype), atype(zeros(T,size(AL[1,1]))))
-        dM = fill!(similar(M, atype), atype(zeros(T,size(M[1,1]))))
-        dAR = fill!(similar(AR, atype), atype(zeros(T,size(AR[1,1]))))
-        for j = 1:Nj, i = 1:Ni
+        dAL = [fill!(similar(AL, atype), atype(zeros(T,size(AL[1,1])))) for _ = 1:nthreads()]
+        dM = [fill!(similar(M, atype), atype(zeros(T,size(M[1,1])))) for _ = 1:nthreads()]
+        dAR = [fill!(similar(AR, atype), atype(zeros(T,size(AR[1,1])))) for _ = 1:nthreads()]
+        @threads for k = 1:Ni*Nj
+            i,j = ktoij(k, Ni, Nj)
             if dFL[i,j] !== nothing
                 ir = Ni + 1 - i
                 jr = j - 1 + Nj * (j == 1)
@@ -410,12 +425,15 @@ function ChainRulesCore.rrule(::typeof(obs2x2FL), AL, AR, M, FL; kwargs...)
                 # @show info ein"abc,cba ->"(FL[i,j], ξl)[] ein"abc,abc -> "(FL[i,j], dFL[i,j])[]
                 for J = 1:Nj
                     dAiJ, dAipJ, dMiJ = dAMmap(AL[i,:], ALd[ir,:], M[i,:], FL[i,j], ξl, j, J)
-                    dAL[i,J] += dAiJ
-                    dAR[ir,J] += permutedims(dAipJ, (3, 2, 1))
-                    dM[i,J] += dMiJ
+                    dAL[threadid()][i,J] += dAiJ
+                    dAR[threadid()][ir,J] += permutedims(dAipJ, (3, 2, 1))
+                    dM[threadid()][i,J] += dMiJ
                 end
             end
         end
+        dAL = reduce(+, dAL)
+        dM = reduce(+, dM)
+        dAR = reduce(+, dAR)
         return NO_FIELDS, dAL, dAR, dM, NO_FIELDS...
     end
     return (λL, FL), back
@@ -428,10 +446,11 @@ function ChainRulesCore.rrule(::typeof(obs2x2FR), AR, AL, M, FR; kwargs...)
     atype = _arraytype(M[1,1])
     ARd = reshape([permutedims(AL[i], (3, 2, 1)) for i = 1:4], (2,2))
     function back((dλ, dFR))
-        dAR = fill!(similar(AR, atype), atype(zeros(T,size(AR[1,1]))))
-        dM = fill!(similar(M, atype), atype(zeros(T,size(M[1,1]))))
-        dAL = fill!(similar(AL, atype), atype(zeros(T,size(AL[1,1]))))
-        for j = 1:Nj, i = 1:Ni
+        dAR = [fill!(similar(AR, atype), atype(zeros(T,size(AR[1,1])))) for _ = 1:nthreads()]
+        dM = [fill!(similar(M, atype), atype(zeros(T,size(M[1,1])))) for _ = 1:nthreads()]
+        dAL = [fill!(similar(AL, atype), atype(zeros(T,size(AL[1,1])))) for _ = 1:nthreads()]
+        @threads for k = 1:Ni*Nj
+            i,j = ktoij(k, Ni, Nj)
             ir = Ni + 1 - i
             jr = j - 1 + Nj * (j == 1)
             if dFR[i,jr] !== nothing
@@ -441,12 +460,15 @@ function ChainRulesCore.rrule(::typeof(obs2x2FR), AR, AL, M, FR; kwargs...)
                 # @show info ein"abc,cba ->"(ξr, FR[i,jr])[] ein"abc,abc -> "(FR[i,jr], dFR[i,jr])[]
                 for J = 1:Nj
                     dAiJ, dAipJ, dMiJ = dAMmap(AR[i,:], ARd[ir,:], M[i,:], ξr, FR[i,jr], j, J)
-                    dAR[i,J] += dAiJ
-                    dAL[ir,J] += permutedims(dAipJ, (3, 2, 1))
-                    dM[i,J] += dMiJ
+                    dAR[threadid()][i,J] += dAiJ
+                    dAL[threadid()][ir,J] += permutedims(dAipJ, (3, 2, 1))
+                    dM[threadid()][i,J] += dMiJ
                 end
             end
         end
+        dAL = reduce(+, dAL)
+        dM = reduce(+, dM)
+        dAR = reduce(+, dAR)
         return NO_FIELDS, dAR, dAL, dM, NO_FIELDS...
     end
     return (λR, FR), back
@@ -519,10 +541,11 @@ function ChainRulesCore.rrule(::typeof(bigleftenv), AL, AR, M, BgFL; kwargs...)
     atype = _arraytype(M[1,1])
     ALd = reshape([permutedims(AR[i], (3, 2, 1)) for i = 1:4], (2,2))
     function back((dλL, dBgFL))
-        dAL = fill!(similar(AL, atype), atype(zeros(T,size(AL[1,1]))))
-        dM = fill!(similar(M, atype), atype(zeros(T,size(M[1,1]))))
-        dAR = fill!(similar(AR, atype), atype(zeros(T,size(AR[1,1]))))
-        for j = 1:Nj, i = 1:Ni
+        dAL = [fill!(similar(AL, atype), atype(zeros(T,size(AL[1,1])))) for _ = 1:nthreads()]
+        dM = [fill!(similar(M, atype), atype(zeros(T,size(M[1,1])))) for _ = 1:nthreads()]
+        dAR = [fill!(similar(AR, atype), atype(zeros(T,size(AR[1,1])))) for _ = 1:nthreads()]
+        @threads for k = 1:Ni*Nj
+            i,j = ktoij(k, Ni, Nj)
             if dBgFL[i,j] !== nothing
                 ir = Ni + 1 - i
                 jr = j - 1 + Nj * (j == 1)
@@ -532,13 +555,16 @@ function ChainRulesCore.rrule(::typeof(bigleftenv), AL, AR, M, BgFL; kwargs...)
                 # @show info ein"abc,cba ->"(FL[i,j], ξl)[] ein"abc,abc -> "(FL[i,j], dFL[i,j])[]
                 for J = 1:Nj
                     dAiJ, dAipJ, dMiJ, dMipJ = dBgAMmap(AL[i,:], ALd[i,:], M[i,:], M[ir,:], BgFL[i,j], ξl, j, J)
-                    dAL[i,J] += dAiJ
-                    dAR[i,J] += permutedims(dAipJ, (3,2,1))
-                    dM[i,J] += dMiJ
-                    dM[ir,J] += dMipJ
+                    dAL[threadid()][i,J] += dAiJ
+                    dAR[threadid()][i,J] += permutedims(dAipJ, (3,2,1))
+                    dM[threadid()][i,J] += dMiJ
+                    dM[threadid()][ir,J] += dMipJ
                 end
             end
         end
+        dAL = reduce(+, dAL)
+        dM = reduce(+, dM)
+        dAR = reduce(+, dAR)
         return NO_FIELDS, dAL, dAR, dM, NO_FIELDS
     end
     return (λL, BgFL), back
@@ -551,10 +577,11 @@ function ChainRulesCore.rrule(::typeof(bigrightenv), AR, AL, M, BgFR; kwargs...)
     atype = _arraytype(M[1,1])
     ARd = reshape([permutedims(AL[i], (3, 2, 1)) for i = 1:4], (2,2))
     function back((dλ, dBgFR))
-        dAR = fill!(similar(AR, atype), atype(zeros(T,size(AR[1,1]))))
-        dM = fill!(similar(M, atype), atype(zeros(T,size(M[1,1]))))
-        dAL = fill!(similar(AL, atype), atype(zeros(T,size(AL[1,1]))))
-        for j = 1:Nj, i = 1:Ni
+        dAL = [fill!(similar(AL, atype), atype(zeros(T,size(AL[1,1])))) for _ = 1:nthreads()]
+        dM = [fill!(similar(M, atype), atype(zeros(T,size(M[1,1])))) for _ = 1:nthreads()]
+        dAR = [fill!(similar(AR, atype), atype(zeros(T,size(AR[1,1])))) for _ = 1:nthreads()]
+        @threads for k = 1:Ni*Nj
+            i,j = ktoij(k, Ni, Nj)
             ir = Ni + 1 - i
             jr = j - 1 + Nj * (j == 1)
             if dBgFR[i,jr] !== nothing
@@ -564,13 +591,16 @@ function ChainRulesCore.rrule(::typeof(bigrightenv), AR, AL, M, BgFR; kwargs...)
                 # @show info ein"abc,cba ->"(ξr, FR[i,jr])[] ein"abc,abc -> "(FR[i,jr], dFR[i,jr])[]
                 for J = 1:Nj
                     dAiJ, dAipJ, dMiJ, dMipJ = dBgAMmap(AR[i,:], ARd[i,:], M[i,:], M[ir,:], ξr, BgFR[i,jr], j, J)
-                    dAR[i,J] += dAiJ
-                    dAL[i,J] += permutedims(dAipJ, (3,2,1))
-                    dM[i,J] += dMiJ
-                    dM[ir,J] += dMipJ
+                    dAR[threadid()][i,J] += dAiJ
+                    dAL[threadid()][i,J] += permutedims(dAipJ, (3,2,1))
+                    dM[threadid()][i,J] += dMiJ
+                    dM[threadid()][ir,J] += dMipJ
                 end
             end
         end
+        dAL = reduce(+, dAL)
+        dM = reduce(+, dM)
+        dAR = reduce(+, dAR)
         return NO_FIELDS, dAR, dAL, dM, NO_FIELDS
     end
     return (λR, BgFR), back

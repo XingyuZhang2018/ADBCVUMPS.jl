@@ -84,7 +84,7 @@ end
     @time @test Zygote.gradient(foo, 1)[1] ≈ num_grad(foo, 1) atol = 1e-8
 end
 
-@testset "$(Ni)x$(Nj) leftenv and rightenv with $atype{$dtype}" for atype in [Array, CuArray], dtype in [Float64], Ni = [2], Nj = [2]
+@testset "$(Ni)x$(Nj) leftenv and rightenv with $atype{$dtype}" for atype in [Array], dtype in [Float64], Ni = [2], Nj = [2]
     Random.seed!(50)
     D, d = 3, 2
     A = Array{atype{dtype,3},2}(undef, Ni, Nj)
@@ -124,7 +124,7 @@ end
     @test isapprox(Zygote.gradient(foo4, 1)[1], num_grad(foo4, 1), atol=1e-8)
 end
 
-@testset "$(Ni)x$(Nj) ACenv and Cenv with $atype{$dtype}" for atype in [Array, CuArray], dtype in [Float64], Ni = [2], Nj = [2]
+@testset "$(Ni)x$(Nj) ACenv and Cenv with $atype{$dtype}" for atype in [Array], dtype in [Float64], Ni = [2], Nj = [2]
     Random.seed!(50)
     D, d = 3, 2
     A = Array{atype{dtype,3},2}(undef, Ni, Nj)
@@ -174,7 +174,7 @@ end
     @test isapprox(Zygote.gradient(foo2, 1)[1], num_grad(foo2, 1), atol=1e-8)
 end
 
-@testset "$(Ni)x$(Nj) ACCtoALAR with $atype{$dtype}" for atype in [Array, CuArray], dtype in [Float64], Ni = [2], Nj = [2]
+@testset "$(Ni)x$(Nj) ACCtoALAR with $atype{$dtype}" for atype in [Array], dtype in [Float64], Ni = [2], Nj = [2]
     Random.seed!(100)
     D, d = 3, 2
     A = Array{atype{dtype,3},2}(undef, Ni, Nj)
@@ -214,7 +214,7 @@ end
     @test isapprox(Zygote.gradient(foo1, 1)[1], num_grad(foo1, 1), atol=1e-4)
 end
 
-@testset "obs2x2 leftenv and rightenv with $atype{$dtype}" for atype in [Array, CuArray], dtype in [Float64], Ni = [2], Nj = [2]
+@testset "obs2x2 leftenv and rightenv with $atype{$dtype}" for atype in [Array], dtype in [Float64], Ni = [2], Nj = [2]
     Random.seed!(50)
     D, d = 3, 2
     A = Array{atype{dtype,3},2}(undef, Ni, Nj)
@@ -254,7 +254,7 @@ end
     @test isapprox(Zygote.gradient(foo4, 1)[1], num_grad(foo4, 1), atol=1e-8)
 end
 
-@testset "bigleftenv and bigrightenv with $atype{$dtype}" for atype in [Array, CuArray], dtype in [Float64], Ni = [2], Nj = [2]
+@testset "bigleftenv and bigrightenv with $atype{$dtype}" for atype in [Array], dtype in [Float64], Ni = [2], Nj = [2]
     Random.seed!(100)
     D, d = 3, 2
     A = Array{atype{dtype,3},2}(undef, Ni, Nj)
