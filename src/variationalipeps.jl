@@ -70,25 +70,26 @@ function expectationvalue(h, ap, env::SquareBCVUMPSRuntime, oc)
     etol = 0
     hx, hy, hz = h
     for j = 1:Nj, i = 1:Ni
-        if (i,j) in [(1,1),(2,2)]
-            hij = hy
-        else
-            hij = hx
+        if (i,j) in [(1,1),(2,1)]
+            if (i,j) in [(1,1)]
+                hij = hy
+            else
+                hij = hx
+            end
+            ir = Ni + 1 - i
+            jr = j + 1 - (j==Nj) * Nj
+            lr = oc1(FL[i,j],AL[i,j],ap[i,j],permutedims(AR[ir,j],(3,2,1)),C[i,j],permutedims(C[ir,jr],(2,1)),FR[i,jr],AR[i,jr],ap[i,jr],permutedims(AL[ir,jr],(3,2,1)))
+            e = ein"pqrs, pqrs -> "(lr,hij)
+            n = ein"pprr -> "(lr)
+            println("hxy = $(Array(e)[]/Array(n)[])") 
+            etol += Array(e)[]/Array(n)[]
         end
-        ir = Ni + 1 - i
-        jr = j + 1 - (j==Nj) * Nj
-        lr = oc1(FL[i,j],AL[i,j],ap[i,j],permutedims(AR[ir,j],(3,2,1)),C[i,j],permutedims(C[ir,jr],(2,1)),FR[i,jr],AR[i,jr],ap[i,jr],permutedims(AL[ir,jr],(3,2,1)))
-        e = ein"pqrs, pqrs -> "(lr,hij)
-        n = ein"pprr -> "(lr)
-        @show Array(e)[]/Array(n)[]
-        etol += Array(e)[]/Array(n)[]
     end
     
-    # AC = ALCtoAC(AL,C)
     _, BgFL = bigleftenv(AL, AR, M)
     _, BgFR = bigrightenv(AR, AL, M)
     for j = 1:Nj, i = 1:Ni
-        if (i,j) in [(1,1),(2,2)]
+        if (i,j) in [(1,1)]
             hij = hz
             ir = i + 1 - Ni * (i==Ni)
             jr = j - 1 + (j==1) * Nj
@@ -96,16 +97,16 @@ function expectationvalue(h, ap, env::SquareBCVUMPSRuntime, oc)
             lr2 = oc2(BgFL[i,j],AL[i,j],C[i,j],ap[i,j],ap[ir,j],permutedims(AR[i,j],(3,2,1)),permutedims(C[i,jr],(2,1)),BgFR[i,j])
             e2 = ein"pqrs, pqrs -> "(lr2,hij)
             n2 = ein"pprr -> "(lr2)
-            @show Array(e2)[]/Array(n2)[]
+            println("hz = $(Array(e2)[]/Array(n2)[])") 
             etol += Array(e2)[]/Array(n2)[]
         end
     end
 
-    return etol/Ni/Nj
+    return etol/2
 end
 
 function buildbcipeps(bulk)
-    bulk = trisymmetrize(bulk)
+    # bulk = trisymmetrize(bulk)
     SquareBCIPEPS(reshape([bulk,permutedims(bulk, (3,4,1,2,5)),permutedims(bulk, (3,4,1,2,5)),bulk], (2, 2)))
 end
 
