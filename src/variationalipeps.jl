@@ -70,8 +70,8 @@ function expectationvalue(h, ap, env::SquareBCVUMPSRuntime, oc)
     etol = 0
     hx, hy, hz = h
     for j = 1:Nj, i = 1:Ni
-        if (i,j) in [(1,1),(2,1)]
-            if (i,j) in [(1,1)]
+        # if (i,j) in [(1,1),(2,1)]
+            if (i,j) in [(1,1),(2,2)]
                 hij = hy
             else
                 hij = hx
@@ -83,13 +83,13 @@ function expectationvalue(h, ap, env::SquareBCVUMPSRuntime, oc)
             n = ein"pprr -> "(lr)
             println("hxy = $(Array(e)[]/Array(n)[])") 
             etol += Array(e)[]/Array(n)[]
-        end
+        # end
     end
     
     _, BgFL = bigleftenv(AL, AR, M)
     _, BgFR = bigrightenv(AR, AL, M)
     for j = 1:Nj, i = 1:Ni
-        if (i,j) in [(1,1)]
+        if (i,j) in [(1,1),(2,2)]
             hij = hz
             ir = i + 1 - Ni * (i==Ni)
             jr = j - 1 + (j==1) * Nj
@@ -102,7 +102,7 @@ function expectationvalue(h, ap, env::SquareBCVUMPSRuntime, oc)
         end
     end
 
-    return etol/2
+    return etol/4
 end
 
 function buildbcipeps(bulk)

@@ -151,7 +151,7 @@ end
 @testset "Kitaev with $atype{$dtype}" for atype in [Array], dtype in [Float64], Ni = [2], Nj = [2]
     Random.seed!(100)
     model = Kitaev(-1.0,-1.0,-1.0)
-    bcipeps, key = init_ipeps(model; atype = atype, D=2, χ=30, tol=1e-10, maxiter=20)
+    bcipeps, key = init_ipeps(model; atype = atype, D=4, χ=30, tol=1e-10, maxiter=20)
     res = optimiseipeps(bcipeps, key; f_tol = 1e-10, opiter = 100, verbose = true)
     e = minimum(res)
     @show e
