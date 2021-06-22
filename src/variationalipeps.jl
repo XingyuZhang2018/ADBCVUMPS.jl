@@ -13,7 +13,7 @@ BCVUMPS with parameters `χ`, `tol` and `maxiter`.
 """
 function energy(h, bcipeps::BCIPEPS, oc, key; verbose = false)
     model, atype, _, χ, tol, maxiter = key
-    bcipeps = indexperm_symmetrize(bcipeps)  # NOTE: this is not good
+    # bcipeps = indexperm_symmetrize(bcipeps)  # NOTE: this is not good
     D = getd(bcipeps)^2
     s = gets(bcipeps)
     bulk = bcipeps.bulk
@@ -24,29 +24,33 @@ function energy(h, bcipeps::BCIPEPS, oc, key; verbose = false)
     a = [ein"ijklaa -> ijkl"(ap[i]) for i = 1:Ni*Nj]
     a = reshape(a, Ni, Nj)
 
-    rt = []
-    folder = "./data/$(model)_$(atype)/"
-    mkpath(folder)
-    chkp_file = folder*"bcvumps_env_$(Ni)x$(Nj)_D$(D)_chi$(χ).jld2"
-    if isfile(chkp_file)
-        rt = SquareBCVUMPSRuntime(a, chkp_file, χ; verbose = verbose)
-    else
-        rt = SquareBCVUMPSRuntime(a, Val(:random), χ; verbose = verbose)
-    end
-    # @show typeof(rt)
-    env = bcvumps(rt; tol=tol, maxiter=maxiter, verbose = verbose)
-    Zygote.@ignore begin
-        M, AL, C, AR, FL, FR = env.M, Array{Array{Float64,3},2}(env.AL), Array{Array{Float64,2},2}(env.C), Array{Array{Float64,3},2}(env.AR), Array{Array{Float64,3},2}(env.FL), Array{Array{Float64,3},2}(env.FR)
-        envsave = SquareBCVUMPSRuntime(M, AL, C, AR, FL, FR)
-        save(chkp_file, "env", envsave)
-    end
+    # rt = []
+    # folder = "./data/$(model)_$(atype)/"
+    # mkpath(folder)
+    # chkp_file = folder*"bcvumps_env_$(Ni)x$(Nj)_D$(D)_chi$(χ).jld2"
+    # if isfile(chkp_file)
+    #     rt = SquareBCVUMPSRuntime(a, chkp_file, χ; verbose = verbose)
+    # else
+    #     rt = SquareBCVUMPSRuntime(a, Val(:random), χ; verbose = verbose)
+    # end
+    # # @show typeof(rt)
+    # env = bcvumps(rt; tol=tol, maxiter=maxiter, verbose = verbose)
+    # Zygote.@ignore begin
+    #     M, AL, C, AR, FL, FR = env.M, Array{Array{Float64,3},2}(env.AL), Array{Array{Float64,2},2}(env.C), Array{Array{Float64,3},2}(env.AR), Array{Array{Float64,3},2}(env.FL), Array{Array{Float64,3},2}(env.FR)
+    #     envsave = SquareBCVUMPSRuntime(M, AL, C, AR, FL, FR)
+    #     save(chkp_file, "env", envsave)
+    # end
+    env = obs_bcenv(model, a; atype = atype, D = D, χ = χ, tol = tol, maxiter = maxiter, verbose = verbose, savefile = true)
     e = expectationvalue(h, ap, env, oc)
     return e
 end
 
 function optcont(D::Int, χ::Int)
     sd = Dict('n' => D^2, 'f' => χ, 'd' => D^2, 'e' => χ, 'o' => D^2, 'h' => χ, 'j' => χ, 'i' => D^2, 'k' => D^2, 'r' => 2, 's' => 2, 'q' => 2, 'a' => χ, 'c' => χ, 'p' => 2, 'm' => χ, 'g' => D^2, 'l' => χ, 'b' => D^2)
-    optimize_greedy(ein"abc,cde,bnodpq,anm,ef,ml,hij,fgh,okigrs,lkj -> pqrs", sd; method=MinSpaceDiff())
+    oc1 = optimize_greedy(ein"abc,cde,bnodpq,anm,ef,ml,hij,fgh,okigrs,lkj -> pqrs", sd; method=MinSpaceDiff())
+    sd = Dict('a' => χ, 'b' => D^2, 'c' => χ, 'd' => D^2, 'e' => D^2, 'f' => D^2, 'g' => D^2, 'h' => D^2, 'i' => χ, 'j' => D^2, 'k' => χ, 'r' => 2, 's' => 2, 'p' => 2, 'q' => 2, 'l' => χ, 'm' => χ)
+    oc2 = optimize_greedy(ein"adgi,abl,lc,dfebpq,gjhfrs,ijm,mk,cehk -> pqrs", sd; method=MinSpaceDiff())
+    oc1, oc2
 end
 
 """
@@ -56,39 +60,38 @@ return the expectationvalue of a two-site operator `h` with the sites
 described by rank-6 tensor `ap` each and an environment described by
 a `SquareBCVUMPSRuntime` `env`.
 """
-function expectationvalue(h, ap, env::SquareBCVUMPSRuntime, oc)
-    M,AL,C,AR,FL,FR = env.M,env.AL,env.C,env.AR,env.FL,env.FR
-    _, FL = obs2x2FL(AL, M, FL)
-    _, FR = obs2x2FR(AR, M, FR)
+function expectationvalue(h, ap, env, oc)
+    M, ALu, Cu, ARu, ALd, Cd, ARd, FL, FR = env
+    oc1, oc2 = oc
     Ni,Nj = size(M)
     # Ni,Nj = 1,2
     ap /= norm(ap)
     etol = 0
     for j = 1:Nj, i = 1:Ni
-        # ir = i + 1 - Ni * (i == Ni)
+        ir = Ni + 1 - i
         jr = j + 1 - (j==Nj) * Nj
-        lr = oc(FL[i,j],AL[i,j],ap[i,j],conj(AL[i,j]),C[i,j],conj(C[i,j]),FR[i,jr],AR[i,jr],ap[i,jr],conj(AR[i,jr]))
+        lr = oc1(FL[i,j],ALu[i,j],ap[i,j],conj(ALd[ir,j]),Cu[i,j],conj(Cd[ir,j]),FR[i,jr],ARu[i,jr],ap[i,jr],conj(ARd[ir,jr]))
         e = ein"pqrs, pqrs -> "(lr,h)
         n = ein"pprr -> "(lr)
- 
+        println("── = $(Array(e)[]/Array(n)[])") 
         etol += Array(e)[]/Array(n)[]
     end
     
     # Zygote.@ignore begin
-    #     AC = ALCtoAC(AL,C)
-    #     for j = 1:Nj, i = 1:Ni
-    #         ir = i + 1 - Ni * (i==Ni)
-    #         # irr = i + 2 - Ni * (i + 2 > Ni)
-    #         _, BgFL = bigleftenv(AL, M)
-    #         _, BgFR = bigrightenv(AR, M)
-    #         e2 = ein"dcba,def,aji,fghi,ckgepq,bjhkrs,pqrs -> "(BgFL[i,j],AC[i,j],conj(AC[ir,j]),BgFR[i,j],ap[i,j],ap[ir,j],h)[]
-    #         n2 = ein"dcba,def,aji,fghi,ckgepq,bjhkrs -> pqrs"(BgFL[i,j],AC[i,j],conj(AC[ir,j]),BgFR[i,j],ap[i,j],ap[ir,j])
-    #         n2 = ein"pprr -> "(n2)[]
-    #         @show i,j,e2/n2
-    #     end
+        _, BgFL = bigleftenv(ALu, ALd, M)
+        _, BgFR = bigrightenv(ARu, ARd, M)
+        for j = 1:Nj, i = 1:Ni
+            ir = i + 1 - Ni * (i==Ni)
+            # irr = i + 2 - Ni * (i + 2 > Ni)
+            lr2 = oc2(BgFL[i,j],ALu[i,j],Cu[i,j],ap[i,j],ap[ir,j],ALd[i,j],Cd[i,j],BgFR[i,j])
+            e2 = ein"pqrs, pqrs -> "(lr2,h)
+            n2 = ein"pprr -> "(lr2)
+            println("| = $(Array(e2)[]/Array(n2)[])") 
+            etol += Array(e2)[]/Array(n2)[]
+        end
     # end
 
-    return etol/Ni/Nj
+    return etol/Ni/Nj/2
 end
 
 """
@@ -127,7 +130,7 @@ function init_ipeps(model::HamiltonianModel; atype = Array, D::Int, χ::Int, tol
     end
     Ni, Nj = model.Ni, model.Nj
     bcipeps = SquareBCIPEPS(buildbcipeps(bulk,Ni,Nj))
-    bcipeps = indexperm_symmetrize(bcipeps)
+    # bcipeps = indexperm_symmetrize(bcipeps)
     return bcipeps, key
 end
 

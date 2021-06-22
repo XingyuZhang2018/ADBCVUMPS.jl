@@ -1,5 +1,6 @@
 module ADBCVUMPS
 
+using Zygote: Random
 using Zygote
 using OMEinsum
 using BCVUMPS
