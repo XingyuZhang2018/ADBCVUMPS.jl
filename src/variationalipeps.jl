@@ -64,19 +64,19 @@ function expectationvalue(h, ap, env, oc)
     M, ALu, Cu, ARu, ALd, Cd, ARd, FL, FR = env
     oc1, oc2 = oc
     Ni,Nj = size(M)
-    hx, hy, hz = h
+    # hx, hy, hz = h
     ap /= norm(ap)
     etol = 0
     for j = 1:Nj, i = 1:Ni
-        if (i,j) in [(1,1),(2,2)]
-            hij = hy
-        else
-            hij = hx
-        end
+        # if (i,j) in [(1,1),(2,2)]
+        #     hij = hy
+        # else
+        #     hij = hx
+        # end
         ir = Ni + 1 - i
         jr = j + 1 - (j==Nj) * Nj
         lr = oc1(FL[i,j],ALu[i,j],ap[i,j],conj(ALd[ir,j]),Cu[i,j],conj(Cd[ir,j]),FR[i,jr],ARu[i,jr],ap[i,jr],conj(ARd[ir,jr]))
-        e = ein"pqrs, pqrs -> "(lr,hij)
+        e = ein"pqrs, pqrs -> "(lr,h)
         n = ein"pprr -> "(lr)
         println("── = $(Array(e)[]/Array(n)[])") 
         etol += Array(e)[]/Array(n)[]
@@ -86,18 +86,18 @@ function expectationvalue(h, ap, env, oc)
     _, BgFR = bigrightenv(ARu, ARd, M)
     for j = 1:Nj, i = 1:Ni
         if (i,j) in [(1,1),(2,2)]
-            hij = hz
+            # hij = hz
             ir = i + 1 - Ni * (i==Ni)
             # irr = i + 2 - Ni * (i + 2 > Ni)
             lr2 = oc2(BgFL[i,j],ALu[i,j],Cu[i,j],ap[i,j],ap[ir,j],ALd[i,j],Cd[i,j],BgFR[i,j])
-            e2 = ein"pqrs, pqrs -> "(lr2,hij)
+            e2 = ein"pqrs, pqrs -> "(lr2,h)
             n2 = ein"pprr -> "(lr2)
             println("| = $(Array(e2)[]/Array(n2)[])") 
             etol += Array(e2)[]/Array(n2)[]
         end
     end
 
-    return etol/4
+    return etol/8
 end
 
 """
@@ -151,8 +151,9 @@ The energy is calculated using vumps with key include parameters `χ`, `tol` and
 """
 function optimiseipeps(bcipeps::BCIPEPS{LT}, key; f_tol = 1e-6, opiter = 100, verbose= false, optimmethod = LBFGS(m = 20)) where LT
     model, atype, D, χ, _, _ = key
-    hx, hy, hz = hamiltonian(model)
-    h = (atype(hx),atype(hy),atype(hz))
+    h = atype(hamiltonian(model))
+    # hx, hy, hz = hamiltonian(model)
+    # h = (atype(hx),atype(hy),atype(hz))
     Ni, Nj = 2, 2
     to = TimerOutput()
     oc = optcont(D, χ)
