@@ -1,0 +1,80 @@
+ERROR: LoadError: LoadError: UndefVarError: CodeInstance not defined
+Stacktrace:
+ [1] include at ./boot.jl:326 [inlined]
+ [2] include_relative(::Module, ::String) at ./loading.jl:1038
+ [3] include at ./sysimg.jl:29 [inlined]
+ [4] include(::String) at /home/xyzhang/.julia/packages/GPUCompiler/XwWPj/src/GPUCompiler.jl:1
+ [5] top-level scope at none:0
+ [6] include at ./boot.jl:326 [inlined]
+ [7] include_relative(::Module, ::String) at ./loading.jl:1038
+ [8] include(::Module, ::String) at ./sysimg.jl:29
+ [9] top-level scope at none:2
+ [10] eval at ./boot.jl:328 [inlined]
+ [11] eval(::Expr) at ./client.jl:404
+ [12] top-level scope at ./none:3
+in expression starting at /home/xyzhang/.julia/packages/GPUCompiler/XwWPj/src/jlgen.jl:5
+in expression starting at /home/xyzhang/.julia/packages/GPUCompiler/XwWPj/src/GPUCompiler.jl:34
+ERROR: LoadError: Failed to precompile GPUCompiler [61eb1bfa-7361-4325-ad38-22787b887f55] to /home/xyzhang/.julia/compiled/v1.1/GPUCompiler/yPwef.ji.
+Stacktrace:
+ [1] error(::String) at ./error.jl:33
+ [2] compilecache(::Base.PkgId, ::String) at ./loading.jl:1197
+ [3] _require(::Base.PkgId) at ./loading.jl:960
+ [4] require(::Base.PkgId) at ./loading.jl:858
+ [5] require(::Module, ::Symbol) at ./loading.jl:853
+ [6] include at ./boot.jl:326 [inlined]
+ [7] include_relative(::Module, ::String) at ./loading.jl:1038
+ [8] include(::Module, ::String) at ./sysimg.jl:29
+ [9] top-level scope at none:2
+ [10] eval at ./boot.jl:328 [inlined]
+ [11] eval(::Expr) at ./client.jl:404
+ [12] top-level scope at ./none:3
+in expression starting at /home/xyzhang/.julia/packages/CUDA/M4jkK/src/CUDA.jl:3
+ERROR: LoadError: LoadError: Failed to precompile CUDA [052768ef-5323-5732-b1bb-66c8b64840ba] to /home/xyzhang/.julia/compiled/v1.1/CUDA/oWw5k.ji.
+Stacktrace:
+ [1] error(::String) at ./error.jl:33
+ [2] compilecache(::Base.PkgId, ::String) at ./loading.jl:1197
+ [3] _require(::Base.PkgId) at ./loading.jl:960
+ [4] require(::Base.PkgId) at ./loading.jl:858
+ [5] require(::Module, ::Symbol) at ./loading.jl:853
+ [6] include at ./boot.jl:326 [inlined]
+ [7] include_relative(::Module, ::String) at ./loading.jl:1038
+ [8] include at ./sysimg.jl:29 [inlined]
+ [9] include(::String) at /home/xyzhang/.julia/packages/BCVUMPS/Af8bS/src/BCVUMPS.jl:1
+ [10] top-level scope at none:0
+ [11] include at ./boot.jl:326 [inlined]
+ [12] include_relative(::Module, ::String) at ./loading.jl:1038
+ [13] include(::Module, ::String) at ./sysimg.jl:29
+ [14] top-level scope at none:2
+ [15] eval at ./boot.jl:328 [inlined]
+ [16] eval(::Expr) at ./client.jl:404
+ [17] top-level scope at ./none:3
+in expression starting at /home/xyzhang/.julia/packages/BCVUMPS/Af8bS/src/cuda_patch.jl:1
+in expression starting at /home/xyzhang/.julia/packages/BCVUMPS/Af8bS/src/BCVUMPS.jl:10
+ERROR: LoadError: Failed to precompile BCVUMPS [284ebded-cb5f-402a-b9c8-b6a334229127] to /home/xyzhang/.julia/compiled/v1.1/BCVUMPS/yiDn1.ji.
+Stacktrace:
+ [1] error(::String) at ./error.jl:33
+ [2] compilecache(::Base.PkgId, ::String) at ./loading.jl:1197
+ [3] _require(::Base.PkgId) at ./loading.jl:960
+ [4] require(::Base.PkgId) at ./loading.jl:858
+ [5] require(::Module, ::Symbol) at ./loading.jl:853
+ [6] include at ./boot.jl:326 [inlined]
+ [7] include_relative(::Module, ::String) at ./loading.jl:1038
+ [8] include(::Module, ::String) at ./sysimg.jl:29
+ [9] top-level scope at none:2
+ [10] eval at ./boot.jl:328 [inlined]
+ [11] eval(::Expr) at ./client.jl:404
+ [12] top-level scope at ./none:3
+in expression starting at /home/xyzhang/research/ADBCVUMPS.jl/src/ADBCVUMPS.jl:3
+ERROR: LoadError: Failed to precompile ADBCVUMPS [28ffd45a-d8fc-40b6-a096-198d7e880fe2] to /home/xyzhang/.julia/compiled/v1.1/ADBCVUMPS/33ytI.ji.
+Stacktrace:
+ [1] error(::String) at ./error.jl:33
+ [2] compilecache(::Base.PkgId, ::String) at ./loading.jl:1197
+ [3] _require(::Base.PkgId) at ./loading.jl:960
+ [4] require(::Base.PkgId) at ./loading.jl:858
+ [5] require(::Module, ::Symbol) at ./loading.jl:853
+ [6] include at ./boot.jl:326 [inlined]
+ [7] include_relative(::Module, ::String) at ./loading.jl:1038
+ [8] include(::Module, ::String) at ./sysimg.jl:29
+ [9] exec_options(::Base.JLOptions) at ./client.jl:267
+ [10] _start() at ./client.jl:436
+in expression starting at /home/xyzhang/research/ADBCVUMPS.jl/example/Kitaev.jl:1

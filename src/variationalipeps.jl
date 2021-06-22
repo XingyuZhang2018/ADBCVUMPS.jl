@@ -35,11 +35,11 @@ function energy(h, bcipeps::BCIPEPS, oc, key; verbose = false)
     end
     # @show typeof(rt)
     env = bcvumps(rt; tol=tol, maxiter=maxiter, verbose = verbose)
-    Zygote.@ignore begin
-        M, AL, C, AR, FL, FR = env.M, Array{Array{Float64,3},2}(env.AL), Array{Array{Float64,2},2}(env.C), Array{Array{Float64,3},2}(env.AR), Array{Array{Float64,3},2}(env.FL), Array{Array{Float64,3},2}(env.FR)
-        envsave = SquareBCVUMPSRuntime(M, AL, C, AR, FL, FR)
-        save(chkp_file, "env", envsave)
-    end
+    # Zygote.@ignore begin
+    #     M, AL, C, AR, FL, FR = env.M, Array{Array{Float64,3},2}(env.AL), Array{Array{Float64,2},2}(env.C), Array{Array{Float64,3},2}(env.AR), Array{Array{Float64,3},2}(env.FL), Array{Array{Float64,3},2}(env.FR)
+    #     envsave = SquareBCVUMPSRuntime(M, AL, C, AR, FL, FR)
+    #     save(chkp_file, "env", envsave)
+    # end
     e = expectationvalue(h, ap, env, oc)
     return e
 end
@@ -107,7 +107,7 @@ end
 
 function buildbcipeps(bulk)
     # bulk = trisymmetrize(bulk)
-    SquareBCIPEPS(reshape([bulk,permutedims(bulk, (3,4,1,2,5)),permutedims(bulk, (3,4,1,2,5)),bulk], (2, 2)))
+    SquareBCIPEPS(reshape([bulk,permutedims(-bulk, (3,4,1,2,5)),permutedims(-bulk, (3,4,1,2,5)),bulk], (2, 2)))
 end
 
 """
