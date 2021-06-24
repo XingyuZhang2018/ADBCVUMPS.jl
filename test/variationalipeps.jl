@@ -112,8 +112,8 @@ end
     # comparison with results from https://github.com/wangleiphy/tensorgrad
     Random.seed!(100)
     model = Heisenberg(Ni,Nj,1.0,1.0,1.0)
-    bcipeps, key = init_ipeps(model; atype = atype, D=3, χ=20, tol=1e-10, maxiter=10)
-    res = optimiseipeps(bcipeps, key; f_tol = 1e-6, opiter = 100, verbose = true)
+    bcipeps, key = init_ipeps(model; atype = atype, D=4, χ=32, tol=1e-10, maxiter=10)
+    res = optimiseipeps(bcipeps, key; f_tol = 1e-6, opiter = 0, verbose = true)
     e = minimum(res)
     @test isapprox(e, -0.66023, atol = 1e-4)
 

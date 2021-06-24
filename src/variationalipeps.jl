@@ -74,6 +74,18 @@ function expectationvalue(h, ap, env::SquareBCVUMPSRuntime, oc)
         etol += Array(e)[]/Array(n)[]
     end
     
+    Zygote.@ignore begin
+        for j = 1:Nj, i = 1:Ni
+            # ir = Ni + 1 - i
+            lr2 = ein"(((((gea,abc),cd),ehfbpq),ghi),ij),dfj -> pq"(FL[i,j],AL[i,j],C[i,j],ap[i,j],AL[i,j],C[i,j],FR[i,j])
+            Mx = ein"pq, pq -> "(Array(lr2),σx)
+            My = ein"pq, pq -> "(Array(lr2),σy)
+            Mz = ein"pq, pq -> "(Array(lr2),σz)
+            n2 = ein"pp -> "(lr2)
+            println("M = $((abs(Array(Mx)[]/Array(n2)[])+abs(Array(My)[]/Array(n2)[])+abs(Array(Mz)[]/Array(n2)[]))/2)") 
+        end
+    end
+
     # Zygote.@ignore begin
     #     AC = ALCtoAC(AL,C)
     #     for j = 1:Nj, i = 1:Ni
