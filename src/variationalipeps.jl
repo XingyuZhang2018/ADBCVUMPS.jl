@@ -97,6 +97,20 @@ function expectationvalue(h, ap, env, oc)
         end
     end
 
+    Zygote.@ignore begin
+        for j = 1:Nj, i = 1:Ni
+            ir = Ni + 1 - i
+            lr = ein"(((((gea,abc),cd),ehfbpq),ghi),ij),dfj -> pq"(FL[i,j],ALu[i,j],Cu[i,j],ap[i,j],ALd[ir,j],Cd[ir,j],FR[i,j])
+            Mx = ein"pq, pq -> "(lr,σx)
+            My = ein"pq, pq -> "(lr,σy)
+            Mz = ein"pq, pq -> "(lr,σz)
+            n = ein"pp -> "(lr)
+            println("Mx = $(Array(Mx)[]/Array(n)[])") 
+            println("My = $(Array(My)[]/Array(n)[])") 
+            println("Mz = $(Array(Mz)[]/Array(n)[])") 
+        end
+    end
+
     return etol/8
 end
 
