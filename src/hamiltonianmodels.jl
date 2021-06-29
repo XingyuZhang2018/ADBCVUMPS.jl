@@ -80,3 +80,26 @@ function hamiltonian(model::Heisenberg)
     # h = ein"ijcd,kc,ld -> ijkl"(h,σx,σx')
     real(h ./ 2)
 end
+
+@doc raw"
+    Kitaev(Jx::T,Jz::T,Jy::T) where {T<:Real}
+return a struct representing the Kitaev model with magnetisation fields
+`Jx`, `Jy` and `Jz`..
+"
+struct Kitaev{T<:Real} <: HamiltonianModel
+    Jz::T
+    Jx::T
+    Jy::T
+end
+Kitaev() = Kitaev(1.0, 1.0, 1.0)
+
+"""
+    hamiltonian(model::Kitaev)
+return the Kitaev hamiltonian for the `model` as a two-site operator.
+"""
+function hamiltonian(model::Kitaev)
+    hx = model.Jx * ein"ij,kl -> ijkl"(σx, σx)
+    hy = model.Jy * ein"ij,kl -> ijkl"(σy, σy)
+    hz = model.Jz * ein"ij,kl -> ijkl"(σz, σz)
+    real(hx / 2), real(hy / 2), real(hz / 2)
+end

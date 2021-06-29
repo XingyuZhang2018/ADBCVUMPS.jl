@@ -2,7 +2,7 @@ using ChainRulesCore
 using LinearAlgebra
 using KrylovKit
 using BCVUMPS
-using BCVUMPS:qrpos,lqpos,leftenv,rightenv,FLmap,FRmap,ACenv,Cenv,ACmap,Cmap,ALCtoAC,obs2x2FL,obs2x2FR
+using BCVUMPS:qrpos,lqpos,leftenv,rightenv,FLmap,FRmap,ACenv,Cenv,ACmap,Cmap,ALCtoAC,obs2x2FL,obs2x2FR,bigleftenv,bigrightenv,BgFLmap,BgFRmap
 using FileIO
 using JLD2
 using Zygote
@@ -11,7 +11,8 @@ Zygote.@nograd BCVUMPS.StopFunction
 Zygote.@nograd BCVUMPS.error
 Zygote.@nograd BCVUMPS.FLint
 Zygote.@nograd BCVUMPS.FRint
-# Zygote.@nograd BCVUMPS._initializect_square
+Zygote.@nograd BCVUMPS.BgFLint
+Zygote.@nograd BCVUMPS.BgFRint
 Zygote.@nograd BCVUMPS.leftorth
 Zygote.@nograd BCVUMPS.rightorth
 Zygote.@nograd BCVUMPS.ALCtoAC
@@ -449,6 +450,121 @@ function ChainRulesCore.rrule(::typeof(obs2x2FR), AR, M, FR; kwargs...)
         return NO_FIELDS, dAR, dM, NO_FIELDS...
     end
     return (λR, FR), back
+end
+
+"""
+    dBgAMmap(Ai, Aip, Mi, Mip, L, R, j, J)
+Aip means Aᵢ₊₁
+```
+               ┌──  Aᵢⱼ  ── ... ── AᵢJ   ──  ...   ──┐ 
+               │     │              │                │ 
+               │─   Mᵢⱼ  ── ...  ──   ────── ...   ──│ 
+dMᵢJ    =     Lᵢⱼ    │              │                Rᵢⱼ 
+               │─   Mᵢ₊₁ⱼ ──... ──Mᵢ₊₁J ───  ...   ──│ 
+               │     │              │                │
+               └──  Aᵢₚⱼ  ─  ...── AᵢₚJ  ──── ...   ──┘ 
+               ┌──  Aᵢⱼ  ── ... ── AᵢJ   ──  ...   ──┐ 
+               │     │              │                │ 
+               │─   Mᵢⱼ  ── ...  ──MᵢJ   ─── ...   ──│ 
+dMᵢₚJ    =    Lᵢⱼ    │              │               Rᵢⱼ 
+               │─   Mᵢ₊₁ⱼ ──... ──     ───   ...   ──│ 
+               │     │              │                │
+               └──  Aᵢₚⱼ  ─  ...── AᵢₚJ  ──── ...   ──┘ 
+               ┌──  Aᵢⱼ  ── ... ──       ──  ...   ──┐ 
+               │     │              │                │ 
+               │─   Mᵢⱼ  ── ... ── MᵢJ ────  ...   ──│ 
+dAᵢJ    =     Lᵢⱼ    │              │                Rᵢⱼ 
+               │─   Mᵢ₊₁ⱼ ──... ── Mᵢ₊₁J ─── ...   ──│ 
+               │     │              │                │
+               └──  Aᵢₚⱼ  ─  ...── AᵢₚJ  ──── ...   ──┘ 
+               ┌──  Aᵢⱼ  ── ... ── AᵢJ   ──  ...   ──┐ 
+               │     │              │                │ 
+               │─   Mᵢⱼ  ── ... ── MᵢJ ────  ...   ──│ 
+dAᵢₚJ    =     Lᵢⱼ    │              │               Rᵢⱼ 
+               │─   Mᵢ₊₁ⱼ ──... ── Mᵢ₊₁J ─── ...   ──│ 
+               │     │              │                │
+               └──  Aᵢₚⱼ  ─ ... ──      ──── ...   ──┘ 
+```
+"""
+function dBgAMmap(Ai, Aip, Mi, Mip, L, R, j, J)
+    Nj = size(Ai, 1)
+        NL = (J - j + (J - j < 0) * Nj)
+    NR = Nj - NL - 1
+    L = copy(L)
+    R = copy(R)
+    for jj = 1:NL
+        jr = j + jj - 1 - (j + jj - 1 > Nj) * Nj
+        L = ein"(((adgi,abc),dfeb),gjhf),ijk -> cehk"(L, Ai[jr], Mi[jr], Mip[jr], conj(Aip[jr]))
+    end
+    for jj = 1:NR
+        jr = j - jj + (j - jj < 1) * Nj
+        R = ein"(((cehk,abc),dfeb),gjhf),ijk -> adgi"(R, Ai[jr], Mi[jr], Mip[jr], conj(Aip[jr]))
+    end
+    dAiJ = -ein"(((adgi,ijk),gjhf),dfeb), cehk -> abc"(L, Aip[J], Mip[J], Mi[J], R)
+    dAipJ = -ein"(((adgi,abc),dfeb),gjhf), cehk -> ijk"(L, Ai[J], Mi[J], Mip[J], R)
+    dMiJ = -ein"(adgi,abc),(gjhf,(ijk,cehk)) -> dfeb"(L, Ai[J], Mip[J], Aip[J], R)
+    dMipJ = -ein"((adgi,abc),dfeb),(ijk,cehk)-> gjhf"(L, Ai[J], Mi[J], Aip[J], R)
+    return dAiJ, dAipJ, dMiJ, dMipJ
+end
+
+function ChainRulesCore.rrule(::typeof(bigleftenv), AL, M, BgFL; kwargs...)
+    λL, BgFL = bigleftenv(AL, M, BgFL)
+    Ni, Nj = size(AL)
+    T = eltype(AL[1,1])
+    atype = _arraytype(M[1,1])
+    function back((dλL, dBgFL))
+        dAL = fill!(similar(AL, atype), atype(zeros(T,size(AL[1,1]))))
+        dM = fill!(similar(M, atype), atype(zeros(T,size(M[1,1]))))
+        for j = 1:Nj, i = 1:Ni
+            if dBgFL[i,j] !== nothing
+                ir = i + 1 - Ni * (i==Ni)
+                jr = j - 1 + Nj * (j == 1)
+                ξl, info = linsolve(BgFR -> BgFRmap(AL[i,:], AL[ir,:], M[i,:], M[ir,:], BgFR, jr), dBgFL[i,j], -λL[i,j], 1)
+                # errL = ein"abc,cba ->"(FL[i,j], ξl)[]
+                # abs(errL) > 1e-1 && throw("FL and ξl aren't orthometric. $(errL) $(info)")
+                # @show info ein"abc,cba ->"(FL[i,j], ξl)[] ein"abc,abc -> "(FL[i,j], dFL[i,j])[]
+                for J = 1:Nj
+                    dAiJ, dAipJ, dMiJ, dMipJ = dBgAMmap(AL[i,:], AL[ir,:], M[i,:], M[ir,:], BgFL[i,j], ξl, j, J)
+                    dAL[i,J] += dAiJ
+                    dAL[ir,J] += dAipJ
+                    dM[i,J] += dMiJ
+                    dM[ir,J] += dMipJ
+                end
+            end
+        end
+        return NO_FIELDS, dAL, dM, NO_FIELDS
+    end
+    return (λL, BgFL), back
+end
+
+function ChainRulesCore.rrule(::typeof(bigrightenv), AR, M, BgFR; kwargs...)
+    λR, BgFR = bigrightenv(AR, M, BgFR)
+    Ni, Nj = size(AR)
+    T = eltype(AR[1,1])
+    atype = _arraytype(M[1,1])
+    function back((dλ, dBgFR))
+        dAR = fill!(similar(AR, atype), atype(zeros(T,size(AR[1,1]))))
+        dM = fill!(similar(M, atype), atype(zeros(T,size(M[1,1]))))
+        for j = 1:Nj, i = 1:Ni
+            ir = i + 1 - Ni * (i==Ni)
+            jr = j - 1 + Nj * (j == 1)
+            if dBgFR[i,jr] !== nothing
+                ξr, info = linsolve(BgFL -> BgFLmap(AR[i,:], AR[ir,:], M[i,:], M[ir,:], BgFL, j), dBgFR[i,jr], -λR[i,jr], 1)
+                # errR = ein"abc,cba ->"(ξr, FR[i,jr])[]
+                # abs(errR) > 1e-1 && throw("FR and ξr aren't orthometric. $(errR) $(info)")
+                # @show info ein"abc,cba ->"(ξr, FR[i,jr])[] ein"abc,abc -> "(FR[i,jr], dFR[i,jr])[]
+                for J = 1:Nj
+                    dAiJ, dAipJ, dMiJ, dMipJ = dBgAMmap(AR[i,:], AR[ir,:], M[i,:], M[ir,:], ξr, BgFR[i,jr], j, J)
+                    dAR[i,J] += dAiJ
+                    dAR[ir,J] += dAipJ
+                    dM[i,J] += dMiJ
+                    dM[ir,J] += dMipJ
+                end
+            end
+        end
+        return NO_FIELDS, dAR, dM, NO_FIELDS
+    end
+    return (λR, BgFR), back
 end
 
 @doc raw"
