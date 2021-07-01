@@ -59,29 +59,31 @@ CUDA.allowscalar(false)
 end
 
 @testset "gradient" for Ni = [2], Nj = [2]
-    Random.seed!(0)
-    model = TFIsing(Ni,Nj,1.0)
-    h = hamiltonian(model)
-    bcipeps, key = init_ipeps(model; D=2, χ=4, tol=1e-10, maxiter=20)
-    gradzygote = first(Zygote.gradient(bcipeps) do x
-        energy(h,model,x; χ=4, tol=1e-10, maxiter=20)
-    end).bulk
-    gradnum = num_grad(bcipeps.bulk, δ=1e-3) do x
-        energy(h,model,SquareBCIPEPS(x); χ=4, tol=1e-10, maxiter=20)
-    end
-    @test isapprox(gradzygote, gradnum, atol=1e-3)
-
-    # Random.seed!(3)
-    # model = Heisenberg(Ni,Nj)
+    # Random.seed!(0)
+    # model = TFIsing(Ni,Nj,1.0)
     # h = hamiltonian(model)
     # bcipeps, key = init_ipeps(model; D=2, χ=4, tol=1e-10, maxiter=20)
     # gradzygote = first(Zygote.gradient(bcipeps) do x
     #     energy(h,model,x; χ=4, tol=1e-10, maxiter=20)
     # end).bulk
     # gradnum = num_grad(bcipeps.bulk, δ=1e-3) do x
-    #     energy(h,model, SquareBCIPEPS(x); χ=4, tol=1e-10, maxiter=20)
+    #     energy(h,model,SquareBCIPEPS(x); χ=4, tol=1e-10, maxiter=20)
     # end
-    # @test isapprox(gradzygote , gradnum, atol=1e-3)
+    # @test isapprox(gradzygote, gradnum, atol=1e-3)
+
+    Random.seed!(3)
+    model = Heisenberg(Ni,Nj)
+    D, χ = 2, 4
+    oc = optcont(D, χ)
+    h = hamiltonian(model)
+    bcipeps, key = init_ipeps(model; D=D, χ=χ, tol=1e-10, maxiter=10)
+    gradzygote = first(Zygote.gradient(bcipeps) do x
+        energy(h, x, oc, key; verbose = false)
+    end).bulk
+    gradnum = num_grad(bcipeps.bulk, δ=1e-3) do x
+        energy(h, SquareBCIPEPS(x), oc, key; verbose = false)
+    end
+    @test isapprox(gradzygote , gradnum, atol=1e-3)
 end
 
 @testset "TFIsing" for Ni = [2], Nj = [2]

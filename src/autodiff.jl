@@ -120,66 +120,62 @@ function dAMmap(Ai, Aip, Mi, L, R, j, J)
     return dAiJ, dAipJ, dMiJ
 end
 
-function ChainRulesCore.rrule(::typeof(leftenv), AL, M, FL; kwargs...)
-    λL, FL = leftenv(AL, M, FL)
-    Ni, Nj = size(AL)
-    T = eltype(AL[1,1])
+function ChainRulesCore.rrule(::typeof(leftenv), ALu, ALd, M, FL; kwargs...)
+    λL, FL = leftenv(ALu, ALd, M, FL)
+    Ni, Nj = size(ALu)
+    T = eltype(ALu[1,1])
     atype = _arraytype(M[1,1])
     function back((dλL, dFL))
-        dAL = [fill!(similar(AL, atype), atype(zeros(T,size(AL[1,1])))) for _ = 1:nthreads()]
-        dM = [fill!(similar(M, atype), atype(zeros(T,size(M[1,1])))) for _ = 1:nthreads()]
-        @threads for k = 1:Ni*Nj
-            i,j = ktoij(k, Ni, Nj)
-            if dFL[i,j] !== nothing
-                ir = i + 1 - Ni * (i == Ni)
-                jr = j - 1 + Nj * (j == 1)
-                ξl, info = linsolve(FR -> FRmap(AL[i,:], AL[ir,:], M[i,:], FR, jr), permutedims(dFL[i,j], (3, 2, 1)), -λL[i,j], 1)
-                # errL = ein"abc,cba ->"(FL[i,j], ξl)[]
-                # abs(errL) > 1e-1 && throw("FL and ξl aren't orthometric. $(errL) $(info)")
-                # @show info ein"abc,cba ->"(FL[i,j], ξl)[] ein"abc,abc -> "(FL[i,j], dFL[i,j])[]
-                for J = 1:Nj
-                    dAiJ, dAipJ, dMiJ = dAMmap(AL[i,:], AL[ir,:], M[i,:], FL[i,j], ξl, j, J)
-                    dAL[threadid()][i,J] += dAiJ
-                    dAL[threadid()][ir,J] += dAipJ
-                    dM[threadid()][i,J] += dMiJ
-                end
-            end
-        end
-        dAL = reduce(+, dAL)
-        dM = reduce(+, dM)
-        return NO_FIELDS, dAL, dM, NO_FIELDS...
-    end
-    return (λL, FL), back
-end
-
-function ChainRulesCore.rrule(::typeof(rightenv), AR, M, FR; kwargs...)
-    λR, FR = rightenv(AR, M, FR)
-    Ni, Nj = size(AR)
-    T = eltype(AR[1,1])
-    atype = _arraytype(M[1,1])
-    function back((dλ, dFR))
-        dAR = [fill!(similar(AR, atype), atype(zeros(T,size(AR[1,1])))) for _ = 1:nthreads()]
+        dALu = [fill!(similar(ALu, atype), atype(zeros(T,size(ALu[1,1])))) for _ = 1:nthreads()]
+        dALd = [fill!(similar(ALd, atype), atype(zeros(T,size(ALd[1,1])))) for _ = 1:nthreads()]
         dM = [fill!(similar(M, atype), atype(zeros(T,size(M[1,1])))) for _ = 1:nthreads()]
         @threads for k = 1:Ni*Nj
             i,j = ktoij(k, Ni, Nj)
             ir = i + 1 - Ni * (i == Ni)
             jr = j - 1 + Nj * (j == 1)
-            if dFR[i,jr] !== nothing
-                ξr, info = linsolve(FL -> FLmap(AR[i,:], AR[ir,:], M[i,:], FL, j), permutedims(dFR[i,jr], (3, 2, 1)), -λR[i,jr], 1)
-                # errR = ein"abc,cba ->"(ξr, FR[i,jr])[]
-                # abs(errR) > 1e-1 && throw("FR and ξr aren't orthometric. $(errR) $(info)")
-                # @show info ein"abc,cba ->"(ξr, FR[i,jr])[] ein"abc,abc -> "(FR[i,jr], dFR[i,jr])[]
-                for J = 1:Nj
-                    dAiJ, dAipJ, dMiJ = dAMmap(AR[i,:], AR[ir,:], M[i,:], ξr, FR[i,jr], j, J)
-                    dAR[threadid()][i,J] += dAiJ
-                    dAR[threadid()][ir,J] += dAipJ
-                    dM[threadid()][i,J] += dMiJ
-                end
+            ξl, info = linsolve(FR -> FRmap(ALu[i,:], ALd[ir,:], M[i,:], FR, jr), permutedims(dFL[i,j], (3, 2, 1)), -λL[i,j], 1)
+            # @assert info.converged == 1
+            for J = 1:Nj
+                dAiJ, dAipJ, dMiJ = dAMmap(ALu[i,:], ALd[ir,:], M[i,:], FL[i,j], ξl, j, J)
+                dALu[threadid()][i,J] += dAiJ
+                dALd[threadid()][ir,J] += dAipJ
+                dM[threadid()][i,J] += dMiJ
             end
         end
-        dAR = reduce(+, dAR)
+        dALu = reduce(+, dALu)
         dM = reduce(+, dM)
-        return NO_FIELDS, dAR, dM, NO_FIELDS...
+        dALd = reduce(+, dALd)
+        return NO_FIELDS, dALu, dALd, dM, NO_FIELDS
+    end
+    return (λL, FL), back
+end
+
+function ChainRulesCore.rrule(::typeof(rightenv), ARu, ARd, M, FR; kwargs...)
+    λR, FR = rightenv(ARu, ARd, M, FR)
+    Ni, Nj = size(ARu)
+    T = eltype(ARu[1,1])
+    atype = _arraytype(M[1,1])
+    function back((dλ, dFR))
+        dARu = [fill!(similar(ARu, atype), atype(zeros(T,size(ARu[1,1])))) for _ = 1:nthreads()]
+        dARd = [fill!(similar(ARd, atype), atype(zeros(T,size(ARd[1,1])))) for _ = 1:nthreads()]
+        dM = [fill!(similar(M, atype), atype(zeros(T,size(M[1,1])))) for _ = 1:nthreads()]
+        @threads for k = 1:Ni*Nj
+            i,j = ktoij(k, Ni, Nj)
+            ir = i + 1 - Ni * (i == Ni)
+            jr = j - 1 + Nj * (j == 1)
+            ξr, info = linsolve(FL -> FLmap(ARu[i,:], ARd[ir,:], M[i,:], FL, j), permutedims(dFR[i,jr], (3, 2, 1)), -λR[i,jr], 1)
+            # @assert info.converged == 1
+            for J = 1:Nj
+                dAiJ, dAipJ, dMiJ = dAMmap(ARu[i,:], ARd[ir,:], M[i,:], ξr, FR[i,jr], j, J)
+                dARu[threadid()][i,J] += dAiJ
+                dARd[threadid()][ir,J] += dAipJ
+                dM[threadid()][i,J] += dMiJ
+            end
+        end
+        dARu = reduce(+, dARu)
+        dM = reduce(+, dM)
+        dARd = reduce(+, dARd)
+        return NO_FIELDS, dARu, dARd, dM, NO_FIELDS
     end
     return (λR, FR), back
 end

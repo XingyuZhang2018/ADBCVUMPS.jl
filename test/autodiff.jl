@@ -11,7 +11,7 @@ using Test
 using Zygote
 CUDA.allowscalar(false)
 
-@testset "matrix autodiff with $atype{$dtype}" for atype in [Array, CuArray], dtype in [Float64]
+@testset "matrix autodiff with $atype{$dtype}" for atype in [Array], dtype in [Float64]
     a = atype(randn(10, 10))
     @test Zygote.gradient(norm, a)[1] ≈ num_grad(norm, a)
 
@@ -32,6 +32,14 @@ CUDA.allowscalar(false)
         return sum(sum(B))
     end
     @test Zygote.gradient(foo2, 1)[1] ≈ num_grad(foo2, 1)
+
+    function foo3(x)
+        A = [Float64[x 2x; 3x x]
+        A = ein"ab,bc -> ac"(A,A)
+        return tr(A)
+    end
+    @show Zygote.gradient(foo3, 1)[1],num_grad(foo3, 1)
+    @test Zygote.gradient(foo3, 1)[1] ≈ num_grad(foo3, 1)
 end
 
 @testset "$(Ni)x$(Nj) model_tensor with $atype{$dtype}" for atype in [Array, CuArray], dtype in [Float64], Ni = [1,2,3], Nj = [1,2,3]
@@ -94,12 +102,14 @@ end
         S[i,j] = atype(rand(dtype, D, d, D, D, d, D))
     end
 
-    AL, = leftorth(A) 
-    _, AR, = rightorth(A)
+    ALu, = leftorth(A) 
+    ALd, = leftorth(A) 
+    _, ARu, = rightorth(A)
+    _, ARd, = rightorth(A)
 
     function foo3(β)
         M = model_tensor(Ising(Ni, Nj), β; atype = atype)
-        _, FL = leftenv(AL, M)
+        _,FL = leftenv(ALu, ALd, M)
         s = 0
         for j in 1:Nj, i in 1:Ni
             A = ein"(γcη,ηcγαaβ),βaα -> "(FL[i,j], S[i,j], FL[i,j])
@@ -112,7 +122,7 @@ end
 
     function foo4(β)
         M = model_tensor(Ising(Ni, Nj), β; atype = atype)
-        _, FR = rightenv(AR, M)
+        _,FR = rightenv(ARu, ARd, M)
         s = 0
         for j in 1:Nj, i in 1:Ni
             A = ein"(γcη,ηcγαaβ),βaα -> "(FR[i,j], S[i,j], FR[i,j])
