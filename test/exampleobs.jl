@@ -27,11 +27,11 @@ end
     # end
     function foo2(β)
         M = model_tensor(model, β; atype = atype)
-        env = obs_bcenv(model, M; atype = atype, D = 2, χ = χ, tol = 1e-20, maxiter = 7, verbose = true, savefile = true)
+        env = obs_bcenv(model, M; atype = atype, D = 2, χ = χ, tol = 1e-20, maxiter = 10, verbose = true, savefile = true)
         magnetisation(env,model,β)
     end
 
-    for β = 0.2:0.2:1.0
+    for β = 0.4
         @test isapprox(Zygote.gradient(foo2,β)[1], magofdβ(model,β), atol = 1e-6)  
     end
 end

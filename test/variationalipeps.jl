@@ -71,9 +71,23 @@ end
     # end
     # @test isapprox(gradzygote, gradnum, atol=1e-3)
 
+    # Random.seed!(3)
+    # model = Heisenberg(Ni,Nj)
+    # D, χ = 2, 4
+    # oc = optcont(D, χ)
+    # h = hamiltonian(model)
+    # bcipeps, key = init_ipeps(model; D=D, χ=χ, tol=1e-10, maxiter=10)
+    # gradzygote = first(Zygote.gradient(bcipeps) do x
+    #     energy(h, x, oc, key; verbose = false)
+    # end).bulk
+    # gradnum = num_grad(bcipeps.bulk, δ=1e-3) do x
+    #     energy(h, SquareBCIPEPS(x), oc, key; verbose = false)
+    # end
+    # @test isapprox(gradzygote , gradnum, atol=1e-3)
+
     Random.seed!(3)
-    model = Heisenberg(Ni,Nj)
-    D, χ = 2, 4
+    model = Kitaev(-1.0,-1.0,-1.0)
+    D, χ = 2, 20
     oc = optcont(D, χ)
     h = hamiltonian(model)
     bcipeps, key = init_ipeps(model; D=D, χ=χ, tol=1e-10, maxiter=10)

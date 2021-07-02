@@ -34,7 +34,7 @@ CUDA.allowscalar(false)
     @test Zygote.gradient(foo2, 1)[1] ≈ num_grad(foo2, 1)
 
     function foo3(x)
-        A = [Float64[x 2x; 3x x]
+        A = Float64[x 2x; 3x x]
         A = ein"ab,bc -> ac"(A,A)
         return tr(A)
     end
