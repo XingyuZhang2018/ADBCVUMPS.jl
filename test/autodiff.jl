@@ -149,8 +149,8 @@ end
     AL, L, _ = leftorth(A) 
     R, AR, _ = rightorth(A)
     M = model_tensor(Ising(Ni, Nj), 1.0; atype = atype)
-    _, FL = leftenv(AL, M)
-    _, FR = rightenv(AR, M)
+    _, FL = leftenv(AL, AL, M)
+    _, FR = rightenv(AR, AR, M)
 
     C = LRtoC(L, R)
     AC = ALCtoAC(AL, C)
@@ -161,7 +161,7 @@ end
         s = 0
         for j in 1:Nj, i in 1:Ni
             A = ein"(γcη,ηcγαaβ),βaα -> "(AC[i,j], S1[i,j], AC[i,j])
-            B = ein"γcη,γca -> "(AC[i,j], AC[i,j])
+            B = ein"γcη,γcη -> "(AC[i,j], AC[i,j])
             s += Array(A)[]/Array(B)[]
         end
         return s
@@ -170,12 +170,12 @@ end
 
     function foo2(β)
         M = model_tensor(Ising(Ni, Nj), β; atype = atype)
-        _, FL = leftenv(AL, M)
-        _, FR = rightenv(AR, M)
+        _, FL = leftenv(AL, AL, M)
+        _, FR = rightenv(AR, AR, M)
         _, C = Cenv(C, FL, FR)
         s = 0
         for j in 1:Nj, i in 1:Ni
-            A = ein"(γη,ηγαβ),ηα -> "(C[i,j], S2[i,j], C[i,j])
+            A = ein"(γη,ηγαβ),βα -> "(C[i,j], S2[i,j], C[i,j])
             B = ein"γη,γη -> "(C[i,j], C[i,j])
             s += Array(A)[]/Array(B)[]
         end
@@ -184,9 +184,9 @@ end
     @test isapprox(Zygote.gradient(foo2, 1)[1], num_grad(foo2, 1), atol=1e-8)
 end
 
-@testset "$(Ni)x$(Nj) ACCtoALAR with $atype{$dtype}" for atype in [Array], dtype in [Float64], Ni = [2], Nj = [2]
+@testset "$(Ni)x$(Nj) ACenv and Cenv with $atype{$dtype}" for atype in [Array], dtype in [Float64], Ni = [2], Nj = [2]
     Random.seed!(100)
-    D, d = 3, 2
+    D, d = 10, 2
     A = Array{atype{dtype,3},2}(undef, Ni, Nj)
     S1 = Array{atype{dtype,6},2}(undef, Ni, Nj)
     S2 = Array{atype{dtype,4},2}(undef, Ni, Nj)
@@ -199,16 +199,75 @@ end
     AL, L, _ = leftorth(A) 
     R, AR, _ = rightorth(A)
     M = model_tensor(Ising(Ni, Nj), 1.0; atype = atype)
-    _, FL = leftenv(AL, M)
-    _, FR = rightenv(AR, M)
+    _, FL = leftenv(AL, AL, M)
+    _, FR = rightenv(AR, AR, M)
+
+    Cp = LRtoC(L, R)
+    ACp = ALCtoAC(AL, Cp)
+
+    using BCVUMPS:ktoij,ACmap,Cmap,ACCtoAL,ACCtoAR,itoir
+    function foo1(β)
+        M = model_tensor(Ising(Ni, Nj), β; atype = atype)
+        _, AC = ACenv(ACp, FL, M, FR)
+        _, C = Cenv(Cp, FL, FR)
+        
+        # ACp = reshape([ACmap(AC[k], FL[:,ktoij(k,Ni,Nj)[2]], FR[:,ktoij(k,Ni,Nj)[2]], M[:,ktoij(k,Ni,Nj)[2]], ktoij(k,Ni,Nj)[1]) for k=1:Ni*Nj],(Ni,Nj))
+        # Cp = reshape([Cmap(C[k], FL[:,ktoij(k,Ni,Nj)[2] + 1 - (ktoij(k,Ni,Nj)[2]==Nj) * Nj], FR[:,ktoij(k,Ni,Nj)[2]], ktoij(k,Ni,Nj)[1]) for k=1:Ni*Nj],(Ni,Nj))
+        AL, AR = ACCtoALAR(AC, C) # mistake
+        # AL = reshape([ACCtoAL(AC[i],C[i]) for i=1:Ni*Nj],Ni,Nj)
+        # AR = reshape([ACCtoAR(AC[i],C[itoir(i,Ni,Nj)]) for i=1:Ni*Nj],Ni,Nj)
+    
+        s = 0
+        for j in 1:Nj, i in 1:Ni
+            A = ein"(γcη,ηcγαaβ),βaα -> "(AC[i,j], S1[i,j], AC[i,j])
+            B = ein"γcη,γcη -> "(AC[i,j], AC[i,j])
+            s += Array(A)[]/Array(B)[]
+            A = ein"(γcη,ηcγαaβ),βaα -> "(AL[i,j], S1[i,j], AL[i,j])
+            B = ein"γcη,γcη -> "(AL[i,j], AL[i,j])
+            s += Array(A)[]/Array(B)[]
+            A = ein"(γcη,ηcγαaβ),βaα -> "(AR[i,j], S1[i,j], AR[i,j])
+            B = ein"γcη,γcη -> "(AR[i,j], AR[i,j])
+            s += Array(A)[]/Array(B)[]
+            A = ein"(γη,ηγαβ),βα -> "(C[i,j], S2[i,j], C[i,j])
+            B = ein"γη,γη -> "(C[i,j], C[i,j])
+            s += Array(A)[]/Array(B)[]
+        end
+        return s
+    end
+    @test isapprox(Zygote.gradient(foo1, 0.5)[1], num_grad(foo1, 0.5), atol=1e-8)
+end
+
+@testset "$(Ni)x$(Nj) ACCtoALAR with $atype{$dtype}" for atype in [Array], dtype in [Float64], Ni = [2], Nj = [2]
+    Random.seed!(100)
+    D, d = 10, 2
+    A = Array{atype{dtype,3},2}(undef, Ni, Nj)
+    S1 = Array{atype{dtype,6},2}(undef, Ni, Nj)
+    S2 = Array{atype{dtype,4},2}(undef, Ni, Nj)
+    for j in 1:Nj, i in 1:Ni
+        A[i,j] = atype(rand(dtype, D, d, D))
+        S1[i,j] = atype(rand(dtype, D, d, D, D, d, D))
+        S2[i,j] = atype(rand(dtype, D, D, D, D))
+    end
+
+    AL, L, _ = leftorth(A) 
+    R, AR, _ = rightorth(A)
+    M = model_tensor(Ising(Ni, Nj), 1.0; atype = atype)
+    _, FL = leftenv(AL, AL, M)
+    _, FR = rightenv(AR, AR, M)
 
     C = LRtoC(L, R)
+    AC = ALCtoAC(AL, C)
 
     function foo1(β)
         M = model_tensor(Ising(Ni, Nj), β; atype = atype)
-        AL, C, AR = ACCtoALAR(AL, C, AR, M, FL, FR)
+        _, AC = ACenv(AC, FL, M, FR)
+        _, C = Cenv(C, FL, FR)
+        AL, AR = ACCtoALAR(AC, C)
         s = 0
         for j in 1:Nj, i in 1:Ni
+            A = ein"(γcη,ηcγαaβ),βaα -> "(AC[i,j], S1[i,j], AC[i,j])
+            B = ein"γcη,γcη -> "(AC[i,j], AC[i,j])
+            s += Array(A)[]/Array(B)[]
             A = ein"(γcη,ηcγαaβ),βaα -> "(AL[i,j], S1[i,j], AL[i,j])
             B = ein"γcη,γcη -> "(AL[i,j], AL[i,j])
             s += Array(A)[]/Array(B)[]
