@@ -239,7 +239,7 @@ end
 
 @testset "$(Ni)x$(Nj) ACCtoALAR with $atype{$dtype}" for atype in [Array], dtype in [Float64], Ni = [2], Nj = [2]
     Random.seed!(100)
-    D, d = 10, 2
+    D, d = 5, 2
     A = Array{atype{dtype,3},2}(undef, Ni, Nj)
     S1 = Array{atype{dtype,6},2}(undef, Ni, Nj)
     S2 = Array{atype{dtype,4},2}(undef, Ni, Nj)
