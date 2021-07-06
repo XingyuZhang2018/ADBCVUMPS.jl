@@ -11,7 +11,7 @@ using Zygote
     model = Ising(Ni,Nj)
     β,D = 0.6,10
     function foo1(β) 
-        magnetisation(bcvumps_env(model,β,D; atype = atype), model, β)
+        magnetisation(bcvumps_env(model,β,D; atype = atype, verbose = true), model, β)
     end
     @test isapprox(Zygote.gradient(foo1,β)[1], magofdβ(model,β), atol = 1e-5)
 end
@@ -31,7 +31,7 @@ end
         magnetisation(env,model,β)
     end
 
-    for β = 0.4
+    for β = 0.2
         @test isapprox(Zygote.gradient(foo2,β)[1], magofdβ(model,β), atol = 1e-6)  
     end
 end
