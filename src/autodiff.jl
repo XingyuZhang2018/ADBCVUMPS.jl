@@ -132,8 +132,8 @@ function ChainRulesCore.rrule(::typeof(leftenv), ALu, ALd, M, FL; kwargs...)
         for j = 1:Nj, i = 1:Ni
             ir = i + 1 - Ni * (i == Ni)
             jr = j - 1 + Nj * (j == 1)
-            ξl, info = linsolve(FR -> FRmap(ALu[i,:], ALd[ir,:], M[i,:], FR, jr), permutedims(dFL[i,j], (3, 2, 1)), -λL[i,j], 1)
-            @assert info.converged == 1
+            ξl, info = linsolve(FR -> FRmap(ALu[i,:], ALd[ir,:], M[i,:], FR, jr), permutedims(dFL[i,j], (3, 2, 1)), -λL[i,j], 1; maxiter = 1)
+            # @assert info.converged == 1
             for J = 1:Nj
                 dAiJ, dAipJ, dMiJ = dAMmap(ALu[i,:], ALd[ir,:], M[i,:], FL[i,j], ξl, j, J)
                 dALu[i,J] += dAiJ
@@ -158,8 +158,8 @@ function ChainRulesCore.rrule(::typeof(rightenv), ARu, ARd, M, FR; kwargs...)
         for j = 1:Nj, i = 1:Ni
             ir = i + 1 - Ni * (i == Ni)
             jr = j - 1 + Nj * (j == 1)
-            ξr, info = linsolve(FL -> FLmap(ARu[i,:], ARd[ir,:], M[i,:], FL, j), permutedims(dFR[i,jr], (3, 2, 1)), -λR[i,jr], 1)
-            @assert info.converged == 1
+            ξr, info = linsolve(FL -> FLmap(ARu[i,:], ARd[ir,:], M[i,:], FL, j), permutedims(dFR[i,jr], (3, 2, 1)), -λR[i,jr], 1; maxiter = 1)
+            # @assert info.converged == 1
             for J = 1:Nj
                 dAiJ, dAipJ, dMiJ = dAMmap(ARu[i,:], ARd[ir,:], M[i,:], ξr, FR[i,jr], j, J)
                 dARu[i,J] += dAiJ
@@ -270,8 +270,8 @@ function ChainRulesCore.rrule(::typeof(ACenv), AC, FL, M, FR; kwargs...)
         for j = 1:Nj, i = 1:Ni
             if dAC[i,j] !== nothing
                 ir = i - 1 + Ni * (i == 1)
-                ξAC, info = linsolve(ACd -> ACdmap(ACd, FL[:,j], FR[:,j], M[:,j], ir), dAC[i,j], -λAC[i,j], 1)
-                @assert info.converged == 1
+                ξAC, info = linsolve(ACd -> ACdmap(ACd, FL[:,j], FR[:,j], M[:,j], ir), dAC[i,j], -λAC[i,j], 1; maxiter = 1)
+                # @assert info.converged == 1
                 # errAC = ein"abc,abc ->"(AC[i,j], ξAC)[]
                 # abs(errAC) > 1e-1 && throw("AC and ξ aren't orthometric. $(errAC) $(info)")
                 # @show info ein"abc,abc ->"(AC[i,j], ξAC)[] ein"abc,abc -> "(AC[i,j], dAC[i,j])[]
@@ -373,8 +373,8 @@ function ChainRulesCore.rrule(::typeof(Cenv), C, FL, FR; kwargs...)
             if dC[i,j] !== nothing
                 ir = i - 1 + Ni * (i == 1)
                 jr = j + 1 - (j==Nj) * Nj
-                ξC, info = linsolve(Cd -> Cdmap(Cd, FL[:,jr], FR[:,j], ir), dC[i,j], -λC[i,j], 1)
-                @assert info.converged == 1
+                ξC, info = linsolve(Cd -> Cdmap(Cd, FL[:,jr], FR[:,j], ir), dC[i,j], -λC[i,j], 1; maxiter = 1)
+                # @assert info.converged == 1
                 # errC = ein"ab,ab ->"(C[i,j], ξC)[]
                 # abs(errC) > 1e-1 && throw("C and ξ aren't orthometric. $(errC) $(info)")
                 # @show info ein"ab,ab ->"(C[i,j], ξC)[] ein"ab,ab -> "(C[i,j], dC[i,j])[]
@@ -402,8 +402,8 @@ function ChainRulesCore.rrule(::typeof(obs_FL), ALu, ALd, M, FL; kwargs...)
         for j = 1:Nj, i = 1:Ni
             ir = Ni + 1 - i
             jr = j - 1 + Nj * (j == 1)
-            ξl, info = linsolve(FR -> FRmap(ALu[i,:], ALd[ir,:], M[i,:], FR, jr), permutedims(dFL[i,j], (3, 2, 1)), -λL[i,j], 1)
-            @assert info.converged == 1
+            ξl, info = linsolve(FR -> FRmap(ALu[i,:], ALd[ir,:], M[i,:], FR, jr), permutedims(dFL[i,j], (3, 2, 1)), -λL[i,j], 1; maxiter = 1)
+            # @assert info.converged == 1
             for J = 1:Nj
                 dAiJ, dAipJ, dMiJ = dAMmap(ALu[i,:], ALd[ir,:], M[i,:], FL[i,j], ξl, j, J)
                 dALu[i,J] += dAiJ
@@ -428,8 +428,8 @@ function ChainRulesCore.rrule(::typeof(obs_FR), ARu, ARd, M, FR; kwargs...)
         for j = 1:Nj, i = 1:Ni
             ir = Ni + 1 - i
             jr = j - 1 + Nj * (j == 1)
-            ξr, info = linsolve(FL -> FLmap(ARu[i,:], ARd[ir,:], M[i,:], FL, j), permutedims(dFR[i,jr], (3, 2, 1)), -λR[i,jr], 1)
-            @assert info.converged == 1
+            ξr, info = linsolve(FL -> FLmap(ARu[i,:], ARd[ir,:], M[i,:], FL, j), permutedims(dFR[i,jr], (3, 2, 1)), -λR[i,jr], 1; maxiter = 1)
+            # @assert info.converged == 1
             for J = 1:Nj
                 dAiJ, dAipJ, dMiJ = dAMmap(ARu[i,:], ARd[ir,:], M[i,:], ξr, FR[i,jr], j, J)
                 dARu[i,J] += dAiJ
@@ -510,8 +510,8 @@ function ChainRulesCore.rrule(::typeof(bigleftenv), ALu, ALd, M, BgFL; kwargs...
             if dBgFL[i,j] !== nothing
                 ir = Ni + 1 - i
                 jr = j - 1 + Nj * (j == 1)
-                ξl, info = linsolve(BgFR -> BgFRmap(ALu[i,:], ALd[i,:], M[i,:], M[ir,:], BgFR, jr), dBgFL[i,j], -λL[i,j], 1)
-                @assert info.converged == 1
+                ξl, info = linsolve(BgFR -> BgFRmap(ALu[i,:], ALd[i,:], M[i,:], M[ir,:], BgFR, jr), dBgFL[i,j], -λL[i,j], 1; maxiter = 1)
+                # @assert info.converged == 1
                 # errL = ein"abc,cba ->"(FL[i,j], ξl)[]
                 # abs(errL) > 1e-1 && throw("FL and ξl aren't orthometric. $(errL) $(info)")
                 # @show info ein"abc,cba ->"(FL[i,j], ξl)[] ein"abc,abc -> "(FL[i,j], dFL[i,j])[]
@@ -542,8 +542,8 @@ function ChainRulesCore.rrule(::typeof(bigrightenv), ARu, ARd, M, BgFR; kwargs..
             ir = Ni + 1 - i
             jr = j - 1 + Nj * (j == 1)
             if dBgFR[i,jr] !== nothing
-                ξr, info = linsolve(BgFL -> BgFLmap(ARu[i,:], ARd[i,:], M[i,:], M[ir,:], BgFL, j), dBgFR[i,jr], -λR[i,jr], 1)
-                @assert info.converged == 1
+                ξr, info = linsolve(BgFL -> BgFLmap(ARu[i,:], ARd[i,:], M[i,:], M[ir,:], BgFL, j), dBgFR[i,jr], -λR[i,jr], 1; maxiter = 1)
+                # @assert info.converged == 1
                 # errR = ein"abc,cba ->"(ξr, FR[i,jr])[]
                 # abs(errR) > 1e-1 && throw("FR and ξr aren't orthometric. $(errR) $(info)")
                 # @show info ein"abc,cba ->"(ξr, FR[i,jr])[] ein"abc,abc -> "(FR[i,jr], dFR[i,jr])[]
