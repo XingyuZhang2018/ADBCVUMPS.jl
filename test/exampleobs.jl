@@ -31,7 +31,7 @@ end
         magnetisation(env,model,β)
     end
 
-    for β = 0.2
+    for β = 0.8
         @test isapprox(Zygote.gradient(foo2,β)[1], magofdβ(model,β), atol = 1e-6)  
     end
 end
