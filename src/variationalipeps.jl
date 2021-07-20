@@ -23,7 +23,7 @@ function energy(h, bcipeps::BCIPEPS, oc, key; verbose = false)
     ap = reshape(ap, Ni, Nj)
     a = [ein"ijklaa -> ijkl"(ap[i]) for i = 1:Ni*Nj]
     a = reshape(a, Ni, Nj)
-
+    a /= norm(a)
     # rt = []
     # folder = "./data/$(model)_$(atype)/"
     # mkpath(folder)
