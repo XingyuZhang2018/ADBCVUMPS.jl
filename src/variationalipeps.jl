@@ -23,7 +23,6 @@ function energy(h, bcipeps::BCIPEPS, oc, key; verbose = false)
     ap = reshape(ap, Ni, Nj)
     a = [ein"ijklaa -> ijkl"(ap[i]) for i = 1:Ni*Nj]
     a = reshape(a, Ni, Nj)
-    a /= norm(a)
     # rt = []
     # folder = "./data/$(model)_$(atype)/"
     # mkpath(folder)
@@ -40,7 +39,7 @@ function energy(h, bcipeps::BCIPEPS, oc, key; verbose = false)
     #     envsave = SquareBCVUMPSRuntime(M, AL, C, AR, FL, FR)
     #     save(chkp_file, "env", envsave)
     # end
-    env = obs_bcenv(model, a; atype = atype, D = D, χ = χ, tol = tol, maxiter = maxiter, verbose = verbose, savefile = true)
+    env = obs_bcenv(model, a; atype = atype, D = D, χ = χ, tol = tol, maxiter = maxiter, miniter = 5, verbose = verbose, savefile = true)
     e = expectationvalue(h, ap, env, oc)
     return e
 end
@@ -126,7 +125,10 @@ checkerboard pattern
 """
 ito12(i,Ni) = mod(mod(i,Ni) + Ni*(mod(i,Ni)==0) + fld(i,Ni) + 1 - (mod(i,Ni)==0), 2) + 1
 
-buildbcipeps(bulk,Ni,Nj) = reshape([bulk[:,:,:,:,:,ito12(i,Ni)] for i = 1:Ni*Nj], (Ni, Nj))
+function buildbcipeps(bulk,Ni,Nj)
+    bulk /= norm(bulk)
+    reshape([bulk[:,:,:,:,:,ito12(i,Ni)] for i = 1:Ni*Nj], (Ni, Nj))
+end
 
 """
     init_ipeps(model::HamiltonianModel; D::Int, χ::Int, tol::Real, maxiter::Int)
@@ -147,6 +149,7 @@ function init_ipeps(model::HamiltonianModel; atype = Array, D::Int, χ::Int, tol
         verbose && println("random initial BCiPEPS $chkp_file")
     end
     Ni, Nj = 2, 2
+    bulk /= norm(bulk)
     bcipeps = SquareBCIPEPS(buildbcipeps(bulk,Ni,Nj))
     # bcipeps = indexperm_symmetrize(bcipeps)
     return bcipeps, key
