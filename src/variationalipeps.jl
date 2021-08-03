@@ -5,49 +5,41 @@ using OMEinsum: get_size_dict, optimize_greedy,  MinSpaceDiff
 using Optim
 using TimerOutputs
 
+function overlap(bulk, D)
+    ID = Matrix{Float64}(I, D, D)
+    I2 = Matrix{Float64}(I, 2, 2)
+    overlap11 = ein"ae, bf, cd -> abcdef"(ID, ID, I2)
+    overlap11 = reshape(overlap11, D, D*2, D^2, D)
+    overlap12 = permutedims(bulk, (5,1,2,3,4))
+    overlap12 = reshape(overlap12, D*2, D, D, D)
+    overlap21 = reshape(bulk, D, D, D, D*2)
+    overlap22 = ein"ac, bd -> abcd"(ID, ID)
+    reshape([overlap11, overlap21, overlap12, overlap22], 2,2)
+end
+
 """
     energy(h, bcipeps; χ, tol, maxiter)
 
 return the energy of the `bcipeps` 2-site hamiltonian `h` and calculated via a
 BCVUMPS with parameters `χ`, `tol` and `maxiter`.
 """
-function energy(h, bcipeps::BCIPEPS, oc, key; verbose = false)
-    model, atype, _, χ, tol, maxiter = key
-    # bcipeps = indexperm_symmetrize(bcipeps)  # NOTE: this is not good
-    D = getd(bcipeps)^2
-    s = gets(bcipeps)
-    bulk = bcipeps.bulk
+function energy(h, bulk, oc, key; verbose = false)
+    bulk = symmetrize(bulk)
+    model, atype, D, χ, tol, maxiter = key
+    a = overlap(bulk, D)
     Ni,Nj = size(bulk)
-    ap = [ein"abcdx,ijkly -> aibjckdlxy"(bulk[i], conj(bulk[i])) for i = 1:Ni*Nj]
-    ap = [reshape(ap[i], D, D, D, D, s, s) for i = 1:Ni*Nj]
-    ap = reshape(ap, Ni, Nj)
-    a = [ein"ijklaa -> ijkl"(ap[i]) for i = 1:Ni*Nj]
-    a = reshape(a, Ni, Nj)
-    # rt = []
-    # folder = "./data/$(model)_$(atype)/"
-    # mkpath(folder)
-    # chkp_file = folder*"bcvumps_env_$(Ni)x$(Nj)_D$(D)_chi$(χ).jld2"
-    # if isfile(chkp_file)
-    #     rt = SquareBCVUMPSRuntime(a, chkp_file, χ; verbose = verbose)
-    # else
-    #     rt = SquareBCVUMPSRuntime(a, Val(:random), χ; verbose = verbose)
-    # end
-    # # @show typeof(rt)
-    # env = bcvumps(rt; tol=tol, maxiter=maxiter, verbose = verbose)
-    # Zygote.@ignore begin
-    #     M, AL, C, AR, FL, FR = env.M, Array{Array{Float64,3},2}(env.AL), Array{Array{Float64,2},2}(env.C), Array{Array{Float64,3},2}(env.AR), Array{Array{Float64,3},2}(env.FL), Array{Array{Float64,3},2}(env.FR)
-    #     envsave = SquareBCVUMPSRuntime(M, AL, C, AR, FL, FR)
-    #     save(chkp_file, "env", envsave)
-    # end
-    env = obs_bcenv(model, a; atype = atype, D = D, χ = χ, tol = tol, maxiter = maxiter, miniter = 5, verbose = verbose, savefile = true)
+    ap = ein"abcdx,ijkly -> aibjckdlxy"(bulk, conj(bulk))
+    ap = reshape(ap, D^2, D^2, D^2, D^2, 2, 2)
+
+    env = obs_bcenv(model, a; atype = atype, D = D^2, χ = χ, tol = tol, maxiter = maxiter, miniter = 5, verbose = verbose, savefile = true)
     e = expectationvalue(h, ap, env, oc)
     return e
 end
 
 function optcont(D::Int, χ::Int)
-    sd = Dict('n' => D^2, 'f' => χ, 'd' => D^2, 'e' => χ, 'o' => D^2, 'h' => χ, 'j' => χ, 'i' => D^2, 'k' => D^2, 'r' => 2, 's' => 2, 'q' => 2, 'a' => χ, 'c' => χ, 'p' => 2, 'm' => χ, 'g' => D^2, 'l' => χ, 'b' => D^2)
+    sd = Dict('n' => D^4, 'f' => χ, 'd' => D^4, 'e' => χ, 'o' => D^4, 'h' => χ, 'j' => χ, 'i' => D^4, 'k' => D^4, 'r' => 2, 's' => 2, 'q' => 2, 'a' => χ, 'c' => χ, 'p' => 2, 'm' => χ, 'g' => D^4, 'l' => χ, 'b' => D^4)
     oc1 = optimize_greedy(ein"abc,cde,bnodpq,anm,ef,ml,hij,fgh,okigrs,lkj -> pqrs", sd; method=MinSpaceDiff())
-    sd = Dict('a' => χ, 'b' => D^2, 'c' => χ, 'd' => D^2, 'e' => D^2, 'f' => D^2, 'g' => D^2, 'h' => D^2, 'i' => χ, 'j' => D^2, 'k' => χ, 'r' => 2, 's' => 2, 'p' => 2, 'q' => 2, 'l' => χ, 'm' => χ)
+    sd = Dict('a' => χ, 'b' => D^4, 'c' => χ, 'd' => D^4, 'e' => D^4, 'f' => D^4, 'g' => D^4, 'h' => D^4, 'i' => χ, 'j' => D^4, 'k' => χ, 'r' => 2, 's' => 2, 'p' => 2, 'q' => 2, 'l' => χ, 'm' => χ)
     oc2 = optimize_greedy(ein"adgi,abl,lc,dfebpq,gjhfrs,ijm,mk,cehk -> pqrs", sd; method=MinSpaceDiff())
     oc1, oc2
 end
@@ -60,74 +52,29 @@ described by rank-6 tensor `ap` each and an environment described by
 a `SquareBCVUMPSRuntime` `env`.
 """
 function expectationvalue(h, ap, env, oc)
-    M, ALu, Cu, ARu, ALd, Cd, ARd, FL, FR = env
+    M, ALu, Cu, ARu, ALd, Cd, ARd, _, _ = env
+    χ, D, _ = size(ALu[1,1]) 
     oc1, oc2 = oc
     Ni,Nj = size(M)
-    hx, hy, hz = h
     ap /= norm(ap)
-    etol = 0
-    for j = 1:Nj, i = 1:Ni
-        if (i,j) in [(1,1),(2,2)]
-            hij = hy
-        else
-            hij = hx
-        end
-        ir = Ni + 1 - i
-        jr = j + 1 - (j==Nj) * Nj
-        lr = oc1(FL[i,j],ALu[i,j],ap[i,j],conj(ALd[ir,j]),Cu[i,j],conj(Cd[ir,j]),FR[i,jr],ARu[i,jr],ap[i,jr],conj(ARd[ir,jr]))
-        e = ein"pqrs, pqrs -> "(lr,hij)
-        n = ein"pprr -> "(lr)
-        println("── = $(Array(e)[]/Array(n)[])") 
-        etol += Array(e)[]/Array(n)[]
-    end
-    
+
     _, BgFL = bigleftenv(ALu, ALd, M)
     _, BgFR = bigrightenv(ARu, ARd, M)
-    for j = 1:Nj, i = 1:Ni
-        if (i,j) in [(1,1),(2,2)]
-            hij = hz
-            ir = i + 1 - Ni * (i==Ni)
-            # irr = i + 2 - Ni * (i + 2 > Ni)
-            lr2 = oc2(BgFL[i,j],ALu[i,j],Cu[i,j],ap[i,j],ap[ir,j],ALd[i,j],Cd[i,j],BgFR[i,j])
-            e2 = ein"pqrs, pqrs -> "(lr2,hij)
-            n2 = ein"pprr -> "(lr2)
-            println("| = $(Array(e2)[]/Array(n2)[])") 
-            etol += Array(e2)[]/Array(n2)[]
-        end
-    end
+    FL = reshape(BgFL[1,1], χ, D^2, χ)
+    FR = reshape(BgFR[1,2], χ, D^2, χ)
 
-    # Zygote.@ignore begin
-    #     for j = 1:Nj, i = 1:Ni
-    #         ir = Ni + 1 - i
-    #         lr3 = ein"(((((gea,abc),cd),ehfbpq),ghi),ij),dfj -> pq"(FL[i,j],ALu[i,j],Cu[i,j],ap[i,j],ALd[ir,j],Cd[ir,j],FR[i,j])
-    #         Mx = ein"pq, pq -> "(Array(lr3),σx)
-    #         My = ein"pq, pq -> "(Array(lr3),σy)
-    #         Mz = ein"pq, pq -> "(Array(lr3),σz)
-    #         n3 = ein"pp -> "(lr3)
-    #         println("M = $((abs(Array(Mx)[]/Array(n3)[])+abs(Array(My)[]/Array(n3)[])+abs(Array(Mz)[]/Array(n3)[]))/4)") 
-    #     end
-    # end
-
-    return etol/4
-end
-
-"""
-    ito12(i,Ni)
-
-checkerboard pattern
-```
-    │    │   
-  ──A────B──  
-    │    │   
-  ──B────A──
-    │    │   
-```
-"""
-ito12(i,Ni) = mod(mod(i,Ni) + Ni*(mod(i,Ni)==0) + fld(i,Ni) + 1 - (mod(i,Ni)==0), 2) + 1
-
-function buildbcipeps(bulk,Ni,Nj)
-    bulk /= norm(bulk)
-    reshape([bulk[:,:,:,:,:,ito12(i,Ni)] for i = 1:Ni*Nj], (Ni, Nj))
+    BgALu = reshape(ein"adb, bec -> adec"(ALu[1,1],ALu[1,2]), (χ, D^2, χ))
+    BgARu = reshape(ein"adb, bec -> adec"(ARu[1,1],ARu[1,2]), (χ, D^2, χ))
+    BgALd = reshape(ein"adb, bec -> adec"(ALd[1,1],ALd[1,2]), (χ, D^2, χ))
+    BgARd = reshape(ein"adb, bec -> adec"(ARd[1,1],ARd[1,2]), (χ, D^2, χ))
+    
+    lr = oc1(FL,BgALu,ap,BgALd,Cu[1,2],Cd[1,2],FR,BgARu,ap,BgARd)
+    e = ein"pqrs, pqrs -> "(lr,h)
+    n = ein"pprr -> "(lr)
+    println("── = $(Array(e)[]/Array(n)[])") 
+    etol = Array(e)[]/Array(n)[]
+    
+    return etol
 end
 
 """
@@ -142,17 +89,14 @@ function init_ipeps(model::HamiltonianModel; atype = Array, D::Int, χ::Int, tol
     mkpath(folder)
     chkp_file = folder*"$(model)_$(atype)_D$(D)_chi$(χ)_tol$(tol)_maxiter$(maxiter).jld2"
     if isfile(chkp_file)
-        bulk = load(chkp_file)["bcipeps"]
+        bulk = load(chkp_file)["ipeps"]
         verbose && println("load BCiPEPS from $chkp_file")
     else
-        bulk = rand(D,D,D,D,2,2)
+        bulk = rand(D,D,D,D,2)
         verbose && println("random initial BCiPEPS $chkp_file")
     end
-    Ni, Nj = 2, 2
-    bulk /= norm(bulk)
-    bcipeps = SquareBCIPEPS(buildbcipeps(bulk,Ni,Nj))
-    # bcipeps = indexperm_symmetrize(bcipeps)
-    return bcipeps, key
+    bulk = symmetrize(bulk)
+    return bulk, key
 end
 
 """
@@ -164,22 +108,17 @@ two-site hamiltonian `h`. The minimization is done using `Optim` with default-me
 providing `optimmethod`. Other options to optim can be passed with `optimargs`.
 The energy is calculated using vumps with key include parameters `χ`, `tol` and `maxiter`.
 """
-function optimiseipeps(bcipeps::BCIPEPS{LT}, key; f_tol = 1e-6, opiter = 100, verbose= false, optimmethod = LBFGS(m = 20)) where LT
+function optimiseipeps(bulk, key; f_tol = 1e-6, opiter = 100, verbose= false, optimmethod = LBFGS(m = 20)) where LT
     model, atype, D, χ, _, _ = key
-    # h = atype(hamiltonian(model))
-    hx, hy, hz = hamiltonian(model)
-    h = (atype(hx),atype(hy),atype(hz))
+    h = atype(hamiltonian(model))
     Ni, Nj = 2, 2
     to = TimerOutput()
     oc = optcont(D, χ)
-    f(x) = @timeit to "forward" real(energy(h, BCIPEPS{LT}(buildbcipeps(atype(x),Ni,Nj)), oc, key; verbose=verbose))
-    ff(x) = real(energy(h, BCIPEPS{LT}(buildbcipeps(atype(x),Ni,Nj)), oc, key; verbose=verbose))
+    f(x) = @timeit to "forward" real(energy(h, x, oc, key; verbose=verbose))
+    ff(x) = real(energy(h, x, oc, key; verbose=verbose))
     g(x) = @timeit to "backward" Zygote.gradient(ff,atype(x))[1]
-    x0 = zeros(D,D,D,D,2,2)
-    x0[:,:,:,:,:,1] = bcipeps.bulk[1,1]
-    x0[:,:,:,:,:,2] = bcipeps.bulk[2,1]
     res = optimize(f, g, 
-        x0, optimmethod, inplace = false,
+        bulk, optimmethod, inplace = false,
         Optim.Options(f_tol=f_tol, iterations=opiter,
         extended_trace=true,
         callback=os->writelog(os, key)),
@@ -204,7 +143,7 @@ function writelog(os::OptimizationState, key=nothing)
         logfile = open("./data/$(model)_$(atype)/$(model)_$(atype)_D$(D)_chi$(χ)_tol$(tol)_maxiter$(maxiter).log", "a")
         write(logfile, message)
         close(logfile)
-        save("./data/$(model)_$(atype)/$(model)_$(atype)_D$(D)_chi$(χ)_tol$(tol)_maxiter$(maxiter).jld2", "bcipeps", os.metadata["x"])
+        save("./data/$(model)_$(atype)/$(model)_$(atype)_D$(D)_chi$(χ)_tol$(tol)_maxiter$(maxiter).jld2", "ipeps", os.metadata["x"])
     end
     return false
 end

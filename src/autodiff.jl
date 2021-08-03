@@ -25,6 +25,8 @@ Zygote.@nograd save
 Zygote.@nograd load
 Zygote.@nograd Random.seed!
 
+Zero(A, atype) = [atype(zero(A[i])) for i in LinearIndices(A)]
+
 # patch since it's currently broken otherwise
 function ChainRulesCore.rrule(::typeof(Base.typed_hvcat), ::Type{T}, rows::Tuple{Vararg{Int}}, xs::S...) where {T,S}
     y = Base.typed_hvcat(T, rows, xs...)
@@ -59,7 +61,7 @@ function ChainRulesCore.rrule(::typeof(qrpos), A::AbstractArray{T,2}) where {T}
     Q, R = qrpos(A)
     function back((dQ, dR))
         M = Array(R * dR' - dQ' * Q)
-        dA = (UpperTriangular(R + I * 1e-10) \ (dQ + Q * _arraytype(Q)(Symmetric(M, :L)))' )'
+        dA = (UpperTriangular(R + I * 1e-6) \ (dQ + Q * _arraytype(Q)(Symmetric(M, :L)))' )'
         return NO_FIELDS, dA
     end
     return (Q, R), back
@@ -69,7 +71,7 @@ function ChainRulesCore.rrule(::typeof(lqpos), A::AbstractArray{T,2}) where {T}
     L, Q = lqpos(A)
     function back((dL, dQ))
         M = Array(L' * dL - dQ * Q')
-        dA = LowerTriangular(L + I * 1e-10)' \ (dQ + _arraytype(Q)(Symmetric(M, :L)) * Q)
+        dA = LowerTriangular(L + I * 1e-6)' \ (dQ + _arraytype(Q)(Symmetric(M, :L)) * Q)
         return NO_FIELDS, dA
     end
     return (L, Q), back
@@ -126,9 +128,9 @@ function ChainRulesCore.rrule(::typeof(leftenv), ALu, ALd, M, FL; kwargs...)
     T = eltype(ALu[1,1])
     atype = _arraytype(M[1,1])
     function back((dλL, dFL))
-        dALu = fill!(similar(ALu, atype), atype(zeros(T,size(ALu[1,1]))))
-        dALd = fill!(similar(ALd, atype), atype(zeros(T,size(ALd[1,1]))))
-        dM = fill!(similar(M, atype), atype(zeros(T,size(M[1,1]))))
+        dALu = Zero(ALu, atype)
+        dALd = Zero(ALd, atype)
+        dM = Zero(M, atype)
         for j = 1:Nj, i = 1:Ni
             ir = i + 1 - Ni * (i == Ni)
             jr = j - 1 + Nj * (j == 1)
@@ -152,9 +154,9 @@ function ChainRulesCore.rrule(::typeof(rightenv), ARu, ARd, M, FR; kwargs...)
     T = eltype(ARu[1,1])
     atype = _arraytype(M[1,1])
     function back((dλ, dFR))
-        dARu = fill!(similar(ARu, atype), atype(zeros(T,size(ARu[1,1]))))
-        dARd = fill!(similar(ARd, atype), atype(zeros(T,size(ARd[1,1]))))
-        dM = fill!(similar(M, atype), atype(zeros(T,size(M[1,1]))))
+        dARu = Zero(ARu, atype)
+        dARd = Zero(ARd, atype)
+        dM = Zero(M, atype)
         for j = 1:Nj, i = 1:Ni
             ir = i + 1 - Ni * (i == Ni)
             jr = j - 1 + Nj * (j == 1)
@@ -264,9 +266,9 @@ function ChainRulesCore.rrule(::typeof(ACenv), AC, FL, M, FR; kwargs...)
     T = eltype(AC[1,1])
     atype = _arraytype(M[1,1])
     function back((dλ, dAC))
-        dFL = fill!(similar(FL, atype), atype(zeros(T,size(FL[1,1]))))
-        dM = fill!(similar(M, atype), atype(zeros(T,size(M[1,1]))))
-        dFR = fill!(similar(FR, atype), atype(zeros(T,size(FR[1,1]))))
+        dFL = Zero(FL, atype)
+        dM = Zero(M, atype)
+        dFR = Zero(FR, atype)
         for j = 1:Nj, i = 1:Ni
             if dAC[i,j] !== nothing
                 ir = i - 1 + Ni * (i == 1)
@@ -367,8 +369,8 @@ function ChainRulesCore.rrule(::typeof(Cenv), C, FL, FR; kwargs...)
     T = eltype(C[1,1])
     atype = _arraytype(FL[1,1])
     function back((dλ, dC))
-        dFL = fill!(similar(FL, atype), atype(zeros(T,size(FL[1,1]))))
-        dFR = fill!(similar(FR, atype), atype(zeros(T,size(FR[1,1]))))
+        dFL = Zero(FL, atype)
+        dFR = Zero(FR, atype)
         for j = 1:Nj, i = 1:Ni
             if dC[i,j] !== nothing
                 ir = i - 1 + Ni * (i == 1)
@@ -396,9 +398,9 @@ function ChainRulesCore.rrule(::typeof(obs_FL), ALu, ALd, M, FL; kwargs...)
     T = eltype(ALu[1,1])
     atype = _arraytype(M[1,1])
     function back((dλL, dFL))
-        dALu = fill!(similar(ALu, atype), atype(zeros(T,size(ALu[1,1]))))
-        dALd = fill!(similar(ALd, atype), atype(zeros(T,size(ALd[1,1]))))
-        dM = fill!(similar(M, atype), atype(zeros(T,size(M[1,1]))))
+        dALu = Zero(ALu, atype)
+        dALd = Zero(ALd, atype)
+        dM = Zero(M, atype)
         for j = 1:Nj, i = 1:Ni
             ir = Ni + 1 - i
             jr = j - 1 + Nj * (j == 1)
@@ -422,9 +424,9 @@ function ChainRulesCore.rrule(::typeof(obs_FR), ARu, ARd, M, FR; kwargs...)
     T = eltype(ARu[1,1])
     atype = _arraytype(M[1,1])
     function back((dλ, dFR))
-        dARu = fill!(similar(ARu, atype), atype(zeros(T,size(ARu[1,1]))))
-        dARd = fill!(similar(ARd, atype), atype(zeros(T,size(ARd[1,1]))))
-        dM = fill!(similar(M, atype), atype(zeros(T,size(M[1,1]))))
+        dARu = Zero(ARu, atype)
+        dARd = Zero(ARd, atype)
+        dM = Zero(M, atype)
         for j = 1:Nj, i = 1:Ni
             ir = Ni + 1 - i
             jr = j - 1 + Nj * (j == 1)
@@ -503,9 +505,9 @@ function ChainRulesCore.rrule(::typeof(bigleftenv), ALu, ALd, M, BgFL; kwargs...
     T = eltype(ALu[1,1])
     atype = _arraytype(M[1,1])
     function back((dλL, dBgFL))
-        dALu = fill!(similar(ALu, atype), atype(zeros(T,size(ALu[1,1]))))
-        dM = fill!(similar(M, atype), atype(zeros(T,size(M[1,1]))))
-        dALd = fill!(similar(ALd, atype), atype(zeros(T,size(ALd[1,1]))))
+        dALu = Zero(ALu, atype)
+        dM = Zero(M, atype)
+        dALd = Zero(ALd, atype)
         for j = 1:Nj, i = 1:Ni
             if dBgFL[i,j] !== nothing
                 ir = Ni + 1 - i
@@ -535,9 +537,9 @@ function ChainRulesCore.rrule(::typeof(bigrightenv), ARu, ARd, M, BgFR; kwargs..
     T = eltype(ARu[1,1])
     atype = _arraytype(M[1,1])
     function back((dλ, dBgFR))
-        dARu = fill!(similar(ARu, atype), atype(zeros(T,size(ARu[1,1]))))
-        dM = fill!(similar(M, atype), atype(zeros(T,size(M[1,1]))))
-        dARd = fill!(similar(ARd, atype), atype(zeros(T,size(ARd[1,1]))))
+        dARu = Zero(ARu, atype)
+        dM = Zero(M, atype)
+        dARd = Zero(ARd, atype)
         for j = 1:Nj, i = 1:Ni
             ir = Ni + 1 - i
             jr = j - 1 + Nj * (j == 1)
