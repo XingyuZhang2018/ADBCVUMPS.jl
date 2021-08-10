@@ -96,19 +96,21 @@ function expectationvalue(h, ap, env, oc)
         end
     end
 
-    # Zygote.@ignore begin
-    #     for j = 1:Nj, i = 1:Ni
-    #         ir = Ni + 1 - i
-    #         lr3 = ein"(((((gea,abc),cd),ehfbpq),ghi),ij),dfj -> pq"(FL[i,j],ALu[i,j],Cu[i,j],ap[i,j],ALd[ir,j],Cd[ir,j],FR[i,j])
-    #         Mx = ein"pq, pq -> "(Array(lr3),σx)
-    #         My = ein"pq, pq -> "(Array(lr3),σy)
-    #         Mz = ein"pq, pq -> "(Array(lr3),σz)
-    #         n3 = ein"pp -> "(lr3)
-    #         println("M = $((abs(Array(Mx)[]/Array(n3)[])+abs(Array(My)[]/Array(n3)[])+abs(Array(Mz)[]/Array(n3)[]))/4)") 
-    #     end
-    # end
+    Zygote.@ignore begin
+        M = 0
+        for j = 1:Nj, i = 1:Ni
+            ir = Ni + 1 - i
+            lr3 = ein"(((((gea,abc),cd),ehfbpq),ghi),ij),dfj -> pq"(FL[i,j],ALu[i,j],Cu[i,j],ap[i,j],ALd[ir,j],Cd[ir,j],FR[i,j])
+            Mx = ein"pq, pq -> "(Array(lr3),σx)
+            My = ein"pq, pq -> "(Array(lr3),σy)
+            Mz = ein"pq, pq -> "(Array(lr3),σz)
+            n3 = ein"pp -> "(lr3)
+            M += (abs(Array(Mx)[]/Array(n3)[])+abs(Array(My)[]/Array(n3)[])+abs(Array(Mz)[]/Array(n3)[]))/4
+            println("M = $(M)") 
+        end
+    end
 
-    return etol/4
+    return etol/4, M/4
 end
 
 """
