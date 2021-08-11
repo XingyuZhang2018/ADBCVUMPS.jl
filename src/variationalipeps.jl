@@ -12,18 +12,16 @@ return the energy of the `bcipeps` 2-site hamiltonian `h` and calculated via a
 BCVUMPS with parameters `χ`, `tol` and `maxiter`.
 """
 function energy(h, bulk, oc, key; verbose = false)
-    model, atype, _, χ, tol, maxiter = key
+    model, atype, D, χ, tol, maxiter, miniter = key
     # bcipeps = indexperm_symmetrize(bcipeps)  # NOTE: this is not good
     Ni,Nj = size(bulk)
-    D = size(bulk[1,1],1)^2
-    s = size(bulk[1,1],5)
     ap = [ein"abcdx,ijkly -> aibjckdlxy"(bulk[i], conj(bulk[i])) for i = 1:Ni*Nj]
-    ap = [reshape(ap[i], D, D, D, D, s, s) for i = 1:Ni*Nj]
+    ap = [reshape(ap[i], D^2, D^2, D^2, D^2, 2, 2) for i = 1:Ni*Nj]
     ap = reshape(ap, Ni, Nj)
     a = [ein"ijklaa -> ijkl"(ap[i]) for i = 1:Ni*Nj]
     a = reshape(a, Ni, Nj)
 
-    env = obs_bcenv(model, a; atype = atype, D = D, χ = χ, tol = tol, maxiter = maxiter, miniter = 5, verbose = verbose, savefile = true)
+    env = obs_bcenv(model, a; atype = atype, D = D^2, χ = χ, tol = tol, maxiter = maxiter, miniter = miniter, verbose = verbose, savefile = true)
     e = expectationvalue(h, ap, env, oc)
     return e
 end
@@ -122,11 +120,11 @@ end
 Initial `bcipeps` and give `key` for use of later optimization. The key include `model`, `D`, `χ`, `tol` and `maxiter`. 
 The iPEPS is random initial if there isn't any calculation before, otherwise will be load from file `/data/model_D_chi_tol_maxiter.jld2`
 """
-function init_ipeps(model::HamiltonianModel; atype = Array, D::Int, χ::Int, tol::Real, maxiter::Int, verbose = true)
-    key = (model, atype, D, χ, tol, maxiter)
-    folder = "./data/$(model)_$(atype)/"
+function init_ipeps(model::HamiltonianModel; atype = Array, D::Int, χ::Int, tol::Real, maxiter::Int, miniter::Int, verbose = true)
+    key = (model, atype, D, χ, tol, maxiter, miniter)
+    folder = "/home/xyzhang/research/ADBCVUMPS.jl/data/$(model)_$(atype)/"
     mkpath(folder)
-    chkp_file = folder*"$(model)_$(atype)_D$(D)_chi$(χ)_tol$(tol)_maxiter$(maxiter).jld2"
+    chkp_file = folder*"$(model)_$(atype)_D$(D)_chi$(χ)_tol$(tol)_maxiter$(maxiter)_miniter$(miniter).jld2"
     if isfile(chkp_file)
         bulk = load(chkp_file)["bcipeps"]
         verbose && println("load BCiPEPS from $chkp_file")
@@ -148,7 +146,7 @@ providing `optimmethod`. Other options to optim can be passed with `optimargs`.
 The energy is calculated using vumps with key include parameters `χ`, `tol` and `maxiter`.
 """
 function optimiseipeps(bulk, key; f_tol = 1e-6, opiter = 100, verbose= false, optimmethod = LBFGS(m = 20)) where LT
-    model, atype, D, χ, _, _ = key
+    model, atype, D, χ, _, _, _ = key
     # h = atype(hamiltonian(model))
     hx, hy, hz = hamiltonian(model)
     h = (atype(hx),atype(hy),atype(hz))
@@ -187,12 +185,12 @@ function writelog(os::OptimizationState, key=nothing)
     printstyled(message; bold=true, color=:red)
     flush(stdout)
 
-    model, atype, D, χ, tol, maxiter = key
+    model, atype, D, χ, tol, maxiter, miniter = key
     if !(key === nothing)
-        logfile = open("./data/$(model)_$(atype)/$(model)_$(atype)_D$(D)_chi$(χ)_tol$(tol)_maxiter$(maxiter).log", "a")
+        logfile = open("/home/xyzhang/research/ADBCVUMPS.jl/data/$(model)_$(atype)/$(model)_$(atype)_D$(D)_chi$(χ)_tol$(tol)_maxiter$(maxiter)_miniter$(miniter).log", "a")
         write(logfile, message)
         close(logfile)
-        save("./data/$(model)_$(atype)/$(model)_$(atype)_D$(D)_chi$(χ)_tol$(tol)_maxiter$(maxiter).jld2", "bcipeps", os.metadata["x"])
+        save("/home/xyzhang/research/ADBCVUMPS.jl/data/$(model)_$(atype)/$(model)_$(atype)_D$(D)_chi$(χ)_tol$(tol)_maxiter$(maxiter)_miniter$(miniter).jld2", "bcipeps", os.metadata["x"])
     end
     return false
 end

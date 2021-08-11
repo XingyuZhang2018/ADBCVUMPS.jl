@@ -1,0 +1,6 @@
+#!/bin/bash
+#PBS -S /bin/bash
+#PBS -j oe
+#PBS -V
+#PBS -l nodes=1:ppn=8
+julia --project=/home/xyzhang/research/ADBCVUMPS.jl /home/xyzhang/research/ADBCVUMPS.jl/job/Kitaev_Heisenberg.jl --degree -55.0 -D 2 -chi20 -opiter 1 --Nv 6
