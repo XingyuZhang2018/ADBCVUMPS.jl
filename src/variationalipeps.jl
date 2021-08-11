@@ -11,34 +11,18 @@ using TimerOutputs
 return the energy of the `bcipeps` 2-site hamiltonian `h` and calculated via a
 BCVUMPS with parameters `χ`, `tol` and `maxiter`.
 """
-function energy(h, bcipeps::BCIPEPS, oc, key; verbose = false)
+function energy(h, bulk, oc, key; verbose = false)
     model, atype, _, χ, tol, maxiter = key
     # bcipeps = indexperm_symmetrize(bcipeps)  # NOTE: this is not good
-    D = getd(bcipeps)^2
-    s = gets(bcipeps)
-    bulk = bcipeps.bulk
     Ni,Nj = size(bulk)
+    D = size(bulk[1,1],1)^2
+    s = size(bulk[1,1],5)
     ap = [ein"abcdx,ijkly -> aibjckdlxy"(bulk[i], conj(bulk[i])) for i = 1:Ni*Nj]
     ap = [reshape(ap[i], D, D, D, D, s, s) for i = 1:Ni*Nj]
     ap = reshape(ap, Ni, Nj)
     a = [ein"ijklaa -> ijkl"(ap[i]) for i = 1:Ni*Nj]
     a = reshape(a, Ni, Nj)
-    # rt = []
-    # folder = "./data/$(model)_$(atype)/"
-    # mkpath(folder)
-    # chkp_file = folder*"bcvumps_env_$(Ni)x$(Nj)_D$(D)_chi$(χ).jld2"
-    # if isfile(chkp_file)
-    #     rt = SquareBCVUMPSRuntime(a, chkp_file, χ; verbose = verbose)
-    # else
-    #     rt = SquareBCVUMPSRuntime(a, Val(:random), χ; verbose = verbose)
-    # end
-    # # @show typeof(rt)
-    # env = bcvumps(rt; tol=tol, maxiter=maxiter, verbose = verbose)
-    # Zygote.@ignore begin
-    #     M, AL, C, AR, FL, FR = env.M, Array{Array{Float64,3},2}(env.AL), Array{Array{Float64,2},2}(env.C), Array{Array{Float64,3},2}(env.AR), Array{Array{Float64,3},2}(env.FL), Array{Array{Float64,3},2}(env.FR)
-    #     envsave = SquareBCVUMPSRuntime(M, AL, C, AR, FL, FR)
-    #     save(chkp_file, "env", envsave)
-    # end
+
     env = obs_bcenv(model, a; atype = atype, D = D, χ = χ, tol = tol, maxiter = maxiter, miniter = 5, verbose = verbose, savefile = true)
     e = expectationvalue(h, ap, env, oc)
     return e
@@ -96,21 +80,21 @@ function expectationvalue(h, ap, env, oc)
         end
     end
 
-    Zygote.@ignore begin
-        M = 0
-        for j = 1:Nj, i = 1:Ni
-            ir = Ni + 1 - i
-            lr3 = ein"(((((gea,abc),cd),ehfbpq),ghi),ij),dfj -> pq"(FL[i,j],ALu[i,j],Cu[i,j],ap[i,j],ALd[ir,j],Cd[ir,j],FR[i,j])
-            Mx = ein"pq, pq -> "(Array(lr3),σx)
-            My = ein"pq, pq -> "(Array(lr3),σy)
-            Mz = ein"pq, pq -> "(Array(lr3),σz)
-            n3 = ein"pp -> "(lr3)
-            M += (abs(Array(Mx)[]/Array(n3)[])+abs(Array(My)[]/Array(n3)[])+abs(Array(Mz)[]/Array(n3)[]))/4
-            println("M = $(M)") 
-        end
-    end
+    # Zygote.@ignore begin
+    #     M = 0
+    #     for j = 1:Nj, i = 1:Ni
+    #         ir = Ni + 1 - i
+    #         lr3 = ein"(((((gea,abc),cd),ehfbpq),ghi),ij),dfj -> pq"(FL[i,j],ALu[i,j],Cu[i,j],ap[i,j],ALd[ir,j],Cd[ir,j],FR[i,j])
+    #         Mx = ein"pq, pq -> "(Array(lr3),σx)
+    #         My = ein"pq, pq -> "(Array(lr3),σy)
+    #         Mz = ein"pq, pq -> "(Array(lr3),σz)
+    #         n3 = ein"pp -> "(lr3)
+    #         M += (abs(Array(Mx)[]/Array(n3)[])+abs(Array(My)[]/Array(n3)[])+abs(Array(Mz)[]/Array(n3)[]))/4
+    #     end
+    #     println("M = $(M)") 
+    # end
 
-    return etol/4, M/4
+    return etol/4
 end
 
 """
@@ -129,7 +113,7 @@ ito12(i,Ni) = mod(mod(i,Ni) + Ni*(mod(i,Ni)==0) + fld(i,Ni) + 1 - (mod(i,Ni)==0)
 
 function buildbcipeps(bulk,Ni,Nj)
     bulk /= norm(bulk)
-    reshape([bulk[:,:,:,:,:,ito12(i,Ni)] for i = 1:Ni*Nj], (Ni, Nj))
+    reshape([bulk[:,:,:,:,:,i] for i = 1:Ni*Nj], (Ni, Nj))
 end
 
 """
@@ -147,14 +131,11 @@ function init_ipeps(model::HamiltonianModel; atype = Array, D::Int, χ::Int, tol
         bulk = load(chkp_file)["bcipeps"]
         verbose && println("load BCiPEPS from $chkp_file")
     else
-        bulk = rand(D,D,D,D,2,2)
+        bulk = rand(D,D,D,D,2,4)
         verbose && println("random initial BCiPEPS $chkp_file")
     end
-    Ni, Nj = 2, 2
     bulk /= norm(bulk)
-    bcipeps = SquareBCIPEPS(buildbcipeps(bulk,Ni,Nj))
-    # bcipeps = indexperm_symmetrize(bcipeps)
-    return bcipeps, key
+    return bulk, key
 end
 
 """
@@ -166,7 +147,7 @@ two-site hamiltonian `h`. The minimization is done using `Optim` with default-me
 providing `optimmethod`. Other options to optim can be passed with `optimargs`.
 The energy is calculated using vumps with key include parameters `χ`, `tol` and `maxiter`.
 """
-function optimiseipeps(bcipeps::BCIPEPS{LT}, key; f_tol = 1e-6, opiter = 100, verbose= false, optimmethod = LBFGS(m = 20)) where LT
+function optimiseipeps(bulk, key; f_tol = 1e-6, opiter = 100, verbose= false, optimmethod = LBFGS(m = 20)) where LT
     model, atype, D, χ, _, _ = key
     # h = atype(hamiltonian(model))
     hx, hy, hz = hamiltonian(model)
@@ -174,14 +155,19 @@ function optimiseipeps(bcipeps::BCIPEPS{LT}, key; f_tol = 1e-6, opiter = 100, ve
     Ni, Nj = 2, 2
     to = TimerOutput()
     oc = optcont(D, χ)
-    f(x) = @timeit to "forward" real(energy(h, BCIPEPS{LT}(buildbcipeps(atype(x),Ni,Nj)), oc, key; verbose=verbose))
-    ff(x) = real(energy(h, BCIPEPS{LT}(buildbcipeps(atype(x),Ni,Nj)), oc, key; verbose=verbose))
-    g(x) = @timeit to "backward" Zygote.gradient(ff,atype(x))[1]
-    x0 = zeros(D,D,D,D,2,2)
-    x0[:,:,:,:,:,1] = bcipeps.bulk[1,1]
-    x0[:,:,:,:,:,2] = bcipeps.bulk[2,1]
+    f(x) = @timeit to "forward" real(energy(h, buildbcipeps(atype(x),Ni,Nj), oc, key; verbose=verbose))
+    ff(x) = real(energy(h, buildbcipeps(atype(x),Ni,Nj), oc, key; verbose=verbose))
+    function g(x)
+        @timeit to "backward" begin
+            grad = Zygote.gradient(ff,atype(x))[1]
+            if norm(grad) > 1.0
+                grad /= norm(grad)
+            end
+            return grad
+        end
+    end
     res = optimize(f, g, 
-        x0, optimmethod, inplace = false,
+        bulk, optimmethod, inplace = false,
         Optim.Options(f_tol=f_tol, iterations=opiter,
         extended_trace=true,
         callback=os->writelog(os, key)),

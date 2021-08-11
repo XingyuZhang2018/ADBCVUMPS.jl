@@ -8,7 +8,7 @@ using BCVUMPS: HamiltonianModel
 using BCVUMPS: _mattype, _arraytype
 
 export num_grad
-export TFIsing, Heisenberg, Kitaev
+export TFIsing, Heisenberg, Kitaev, Kitaev_Heisenberg
 export hamiltonian, HamiltonianModel
 export init_ipeps, energy, optimiseipeps
 

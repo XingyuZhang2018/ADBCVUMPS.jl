@@ -8,4 +8,18 @@ using ADBCVUMPS:diaglocal
     @test TFIsing(Ni,Nj,1.0) isa HamiltonianModel
     @test Heisenberg(Ni,Nj) isa HamiltonianModel
     @test diaglocal(Ni,Nj,[1.,-1]) isa HamiltonianModel
+    @test Kitaev() isa HamiltonianModel
+    @test Kitaev_Heisenberg(0.1) isa HamiltonianModel
+    
+    h1 = hamiltonian(Kitaev_Heisenberg(-90))
+    h2 = hamiltonian(Kitaev(-1,-1,-1))
+    for i = 1:3
+        @test h1[i] ≈ h2[i]
+    end
+
+    h1 = hamiltonian(Kitaev_Heisenberg(90))
+    h2 = hamiltonian(Kitaev(1,1,1))
+    for i = 1:3
+        @test h1[i] ≈ h2[i]
+    end
 end

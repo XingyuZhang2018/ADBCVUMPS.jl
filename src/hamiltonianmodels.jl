@@ -105,3 +105,28 @@ function hamiltonian(model::Kitaev)
     hz = model.Jz * ein"ij,kl -> ijkl"(σz, σz)
     real(hx / 2), real(hy / 2), real(hz / 2)
 end
+
+@doc raw"
+    Kitaev_Heisenberg{T<:Real} <: HamiltonianModel
+
+return a struct representing the Kitaev_Heisenberg model with interaction factor
+`ϕ` degree
+"
+struct Kitaev_Heisenberg{T<:Real} <: HamiltonianModel
+    ϕ::T
+end
+
+"""
+    hamiltonian(model::Kitaev_Heisenberg)
+
+return the Kitaev_Heisenberg hamiltonian for the `model` as a two-site operator.
+"""
+function hamiltonian(model::Kitaev_Heisenberg)
+    Heisenberg = cos(model.ϕ / 180 * pi) / 2 * (ein"ij,kl -> ijkl"(σz, σz) +
+                                 ein"ij,kl -> ijkl"(σx, σx) +
+                                 ein"ij,kl -> ijkl"(σy, σy) )
+    hx = Heisenberg + sin(model.ϕ / 180 * pi) * ein"ij,kl -> ijkl"(σx, σx)
+    hy = Heisenberg + sin(model.ϕ / 180 * pi) * ein"ij,kl -> ijkl"(σy, σy)
+    hz = Heisenberg + sin(model.ϕ / 180 * pi) * ein"ij,kl -> ijkl"(σz, σz)
+    real(hx / 2), real(hy / 2), real(hz / 2)
+end
