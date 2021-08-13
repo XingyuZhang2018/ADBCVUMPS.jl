@@ -1,0 +1,11 @@
+for i in $(seq 60.0 5.0 90.0); do cp Kitaev_Heisenberg{Float64}\(-55.0\)_Array Kitaev_Heisenberg{Float64}\(-${i}\)_Array -r; done
+
+for i in $(seq 60.0 5.0 90.0); do cd Kitaev_Heisenberg{Float64}\(-${i}\)_Array && rm Kitaev_Heisenberg{Float64}\(-55.0\)_Array_D2_chi20_tol1.0e-10_maxiter10_miniter5.log && mv Kitaev_Heisenberg{Float64}\(-55.0\)_Array_D2_chi20_tol1.0e-10_maxiter10_miniter5.jld2 Kitaev_Heisenberg{Float64}\(-${i}\)_Array_D2_chi20_tol1.0e-10_maxiter10_miniter5.jld2 && cd ..; done
+
+for i in $(seq 60.0 5.0 90.0); do cp degree-55.0_D2_chi20 degree-${i}_D2_chi20 && sed -i "6s/-55.0/-$i/g" degree-${i}_D2_chi20; done
+
+grep degree *_chi20
+
+for i in $(seq 60.0 5.0 90.0); do qsub -V degree-${i}_D2_chi20; done
+
+for i in $(seq 60.0 5.0 90.0); do qdel $i; done
