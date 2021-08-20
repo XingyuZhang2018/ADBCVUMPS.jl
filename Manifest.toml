@@ -31,8 +31,8 @@ uuid = "56f22d72-fd6d-98f1-02f0-08ddc0907c33"
 
 [[BCVUMPS]]
 deps = ["BenchmarkTools", "CUDA", "FileIO", "IterTools", "JLD2", "KrylovKit", "LinearAlgebra", "OMEinsum", "Plots", "ProgressMeter", "Random", "Statistics", "Zygote"]
-git-tree-sha1 = "98a19b15e137a321f8c2b4d5f2543931b12fada0"
-repo-rev = "up-and-down"
+git-tree-sha1 = "24db9446e5fac0b6812882a7c7c81684aa6a1f5d"
+repo-rev = "fold"
 repo-url = "https://github.com/XingyuZhang2018/BCVUMPS.jl#"
 uuid = "284ebded-cb5f-402a-b9c8-b6a334229127"
 version = "0.2.0"

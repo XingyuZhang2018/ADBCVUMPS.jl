@@ -1,20 +1,21 @@
-using BCVUMPS: bigleftenv, bigrightenv, ALCtoAC, obs2x2FL, obs2x2FR
+using BCVUMPS: bigleftenv, bigrightenv, ALCtoAC, obs2x2FL, obs2x2FR, leftenv, rightenv
+using CUDA
 using LinearAlgebra: I, norm
 using LineSearches
 using OMEinsum: get_size_dict, optimize_greedy,  MinSpaceDiff
 using Optim
 using TimerOutputs
 
-function overlap(bulk, D)
+function overlap(bulk, D, atype)
     ID = Matrix{Float64}(I, D, D)
     I2 = Matrix{Float64}(I, 2, 2)
     overlap11 = ein"ae, bf, cd -> abcdef"(ID, ID, I2)
-    overlap11 = reshape(overlap11, D, D*2, D^2, D)
+    overlap11 = reshape(overlap11, D, D*2, D*2, D)
     overlap12 = permutedims(bulk, (5,1,2,3,4))
     overlap12 = reshape(overlap12, D*2, D, D, D)
     overlap21 = reshape(bulk, D, D, D, D*2)
     overlap22 = ein"ac, bd -> abcd"(ID, ID)
-    reshape([overlap11, overlap21, overlap12, overlap22], 2,2)
+    reshape([atype(overlap11), atype(overlap21), atype(overlap12), atype(overlap22)], 2,2)
 end
 
 """
@@ -26,20 +27,21 @@ BCVUMPS with parameters `χ`, `tol` and `maxiter`.
 function energy(h, bulk, oc, key; verbose = false)
     bulk = symmetrize(bulk)
     model, atype, D, χ, tol, maxiter = key
-    a = overlap(bulk, D)
+    a = overlap(bulk, D, atype)
     Ni,Nj = size(bulk)
+    bulk = atype(bulk)
     ap = ein"abcdx,ijkly -> aibjckdlxy"(bulk, conj(bulk))
     ap = reshape(ap, D^2, D^2, D^2, D^2, 2, 2)
 
-    env = obs_bcenv(model, a; atype = atype, D = D^2, χ = χ, tol = tol, maxiter = maxiter, miniter = 5, verbose = verbose, savefile = true)
+    env = obs_bcenv_oneside(model, a; atype = atype, D = D, χ = χ, tol = tol, maxiter = maxiter, miniter = 10, verbose = verbose, savefile = true)
     e = expectationvalue(h, ap, env, oc)
     return e
 end
 
 function optcont(D::Int, χ::Int)
-    sd = Dict('n' => D^4, 'f' => χ, 'd' => D^4, 'e' => χ, 'o' => D^4, 'h' => χ, 'j' => χ, 'i' => D^4, 'k' => D^4, 'r' => 2, 's' => 2, 'q' => 2, 'a' => χ, 'c' => χ, 'p' => 2, 'm' => χ, 'g' => D^4, 'l' => χ, 'b' => D^4)
+    sd = Dict('n' => D^2, 'f' => χ, 'd' => D^2, 'e' => χ, 'o' => D^2, 'h' => χ, 'j' => χ, 'i' => D^2, 'k' => D^2, 'r' => 2, 's' => 2, 'q' => 2, 'a' => χ, 'c' => χ, 'p' => 2, 'm' => χ, 'g' => D^2, 'l' => χ, 'b' => D^2)
     oc1 = optimize_greedy(ein"abc,cde,bnodpq,anm,ef,ml,hij,fgh,okigrs,lkj -> pqrs", sd; method=MinSpaceDiff())
-    sd = Dict('a' => χ, 'b' => D^4, 'c' => χ, 'd' => D^4, 'e' => D^4, 'f' => D^4, 'g' => D^4, 'h' => D^4, 'i' => χ, 'j' => D^4, 'k' => χ, 'r' => 2, 's' => 2, 'p' => 2, 'q' => 2, 'l' => χ, 'm' => χ)
+    sd = Dict('a' => χ, 'b' => D^2, 'c' => χ, 'd' => D^2, 'e' => D^2, 'f' => D^2, 'g' => D^2, 'h' => D^2, 'i' => χ, 'j' => D^2, 'k' => χ, 'r' => 2, 's' => 2, 'p' => 2, 'q' => 2, 'l' => χ, 'm' => χ)
     oc2 = optimize_greedy(ein"adgi,abl,lc,dfebpq,gjhfrs,ijm,mk,cehk -> pqrs", sd; method=MinSpaceDiff())
     oc1, oc2
 end
@@ -52,28 +54,47 @@ described by rank-6 tensor `ap` each and an environment described by
 a `SquareBCVUMPSRuntime` `env`.
 """
 function expectationvalue(h, ap, env, oc)
-    M, ALu, Cu, ARu, ALd, Cd, ARd, _, _ = env
+    _, ALu, Cu, ARu, FL, FR = env
     χ, D, _ = size(ALu[1,1]) 
     oc1, oc2 = oc
-    Ni,Nj = size(M)
+    # a = reshape([CuArray(ein"ijklaa -> ijkl"(ap))],1,1)
     ap /= norm(ap)
+    ap = CuArray(ap)
 
-    _, BgFL = bigleftenv(ALu, ALd, M)
-    _, BgFR = bigrightenv(ARu, ARd, M)
-    FL = reshape(BgFL[1,1], χ, D^2, χ)
-    FR = reshape(BgFR[1,2], χ, D^2, χ)
-
-    BgALu = reshape(ein"adb, bec -> adec"(ALu[1,1],ALu[1,2]), (χ, D^2, χ))
-    BgARu = reshape(ein"adb, bec -> adec"(ARu[1,1],ARu[1,2]), (χ, D^2, χ))
-    BgALd = reshape(ein"adb, bec -> adec"(ALd[1,1],ALd[1,2]), (χ, D^2, χ))
-    BgARd = reshape(ein"adb, bec -> adec"(ARd[1,1],ARd[1,2]), (χ, D^2, χ))
+    BgALu = CuArray(reshape(ein"adb, bec -> adec"(ALu[1,1],ALu[1,2]), (χ, D^2, χ)))
+    BgARu = CuArray(reshape(ein"adb, bec -> adec"(ARu[1,1],ARu[1,2]), (χ, D^2, χ)))
     
-    lr = oc1(FL,BgALu,ap,BgALd,Cu[1,2],Cd[1,2],FR,BgARu,ap,BgARd)
-    e = ein"pqrs, pqrs -> "(lr,h)
+    BgFL = CuArray(reshape(ein"cde, abc -> abde"(FL[1,1],FL[2,1]), (χ, D^2, χ)))
+    BgFR = CuArray(reshape(ein"abc, cde -> adbe"(FR[1,2],FR[2,2]), (χ, D^2, χ)))
+
+    # BgALu = reshape([BgALu],1,1)
+    # BgARu = reshape([BgARu],1,1)
+    # BgFL = reshape([BgFL],1,1)
+    # BgFR = reshape([BgFR],1,1)
+    # _, BgFL = leftenv(BgALu, BgALu, a, BgFL)
+    # _, BgFR = rightenv(BgARu, BgARu, a, BgFR)
+    # BgFL = BgFL[1,1]
+    # BgFR = BgFR[1,1]
+    # BgALu = BgALu[1,1]
+    # BgARu = BgARu[1,1]
+
+    lr = oc1(BgFL,BgALu,ap,BgALu,CuArray(Cu[1,2]),CuArray(Cu[1,2]),BgFR,BgARu,ap,BgARu)
+    e = ein"pqrs, pqrs -> "(lr,CuArray(h))
     n = ein"pprr -> "(lr)
     println("── = $(Array(e)[]/Array(n)[])") 
     etol = Array(e)[]/Array(n)[]
-    
+
+    # Zygote.@ignore begin
+    #     _, BgFL1s, _= eigsolve(X->ein"(((dcba,def),ckge),bjhk),aji -> fghi"(X,BgALu,a,a,BgALd), rand(χ,D^2,D^2,χ), 1, :LM; ishermitian = false)
+    #     BgFL = BgFL1s[1]
+    #     _, BgFR1s, _= eigsolve(X->ein"(((fghi,def),ckge),bjhk),aji -> dcba"(X,BgARu,a,a,BgARd), rand(χ,D^2,D^2,χ), 1, :LM; ishermitian = false)
+    #     BgFR = BgFR1s[1]
+    #     lr2 = oc2(BgFL,BgALu,Cu[1,2],ap,ap,BgALd,Cd[1,2],BgFR)
+    #     e2 = ein"pqrs, pqrs -> "(lr2,h)
+    #     n2 = ein"pprr -> "(lr2)
+    #     println("| = $(Array(e2)[]/Array(n2)[])") 
+    # end
+
     return etol
 end
 
@@ -114,16 +135,16 @@ function optimiseipeps(bulk, key; f_tol = 1e-6, opiter = 100, verbose= false, op
     Ni, Nj = 2, 2
     to = TimerOutput()
     oc = optcont(D, χ)
-    f(x) = @timeit to "forward" real(energy(h, x, oc, key; verbose=verbose))
-    ff(x) = real(energy(h, x, oc, key; verbose=verbose))
-    g(x) = @timeit to "backward" Zygote.gradient(ff,atype(x))[1]
+    f(x) = real(energy(h, x, oc, key; verbose=verbose))
+    # ff(x) = real(energy(h, x, oc, key; verbose=verbose))
+    g(x) = Zygote.gradient(f,atype(x))[1]
     res = optimize(f, g, 
         bulk, optimmethod, inplace = false,
         Optim.Options(f_tol=f_tol, iterations=opiter,
         extended_trace=true,
-        callback=os->writelog(os, key)),
+        callback=os->writelog(os, key)), 
         )
-    println(to)
+    # println(to)
     return res
 end
 
