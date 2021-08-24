@@ -24,7 +24,7 @@ function parse_commandline()
         "--miniter"
             help = "min iterition for vumps"
             arg_type = Int
-            default = 5
+            default = 2
         "--opiter"
             help = "iterition for optimise"
             arg_type = Int
