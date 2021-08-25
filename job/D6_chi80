@@ -4,4 +4,4 @@
 #PBS -V
 #PBS -l nodes=1:ppn=8:gpus=1
 project_dir=/home/xyzhang/research/ADBCVUMPS.jl
-julia --project=${project_dir} ${project_dir}/job/Kitaev_Heisenberg.jl --D 6 --chi 80 --folder ${project_dir}/data/ --optiter 0 
+julia --project=${project_dir} ${project_dir}/job/Heisenberg-fold.jl --D 6 --chi 80 --folder ${project_dir}/data/ --opiter 1000

@@ -24,7 +24,7 @@ end
 return the energy of the `bcipeps` 2-site hamiltonian `h` and calculated via a
 BCVUMPS with parameters `χ`, `tol` and `maxiter`.
 """
-function energy(h, bulk, oc, key; verbose = false)
+function energy(h, bulk, oc, key; verbose = false, savefile = true)
     bulk = symmetrize(bulk)
     folder, model, atype, D, χ, tol, maxiter, miniter = key
     a = overlap(bulk, D, atype)
@@ -33,7 +33,7 @@ function energy(h, bulk, oc, key; verbose = false)
     ap = ein"abcdx,ijkly -> aibjckdlxy"(bulk, conj(bulk))
     ap = reshape(ap, D^2, D^2, D^2, D^2, 2, 2)
 
-    env = obs_bcenv_oneside(model, a; atype = atype, D = D, χ = χ, tol = tol, maxiter = maxiter, miniter = miniter, verbose = verbose, savefile = true, folder = folder)
+    env = obs_bcenv_oneside(model, a; atype = atype, D = D, χ = χ, tol = tol, maxiter = maxiter, miniter = miniter, verbose = verbose, savefile = savefile, folder = folder)
     e = expectationvalue(h, ap, env, oc)
     return e
 end
@@ -67,6 +67,16 @@ function expectationvalue(h, ap, env, oc)
     n = ein"pprr -> "(lr)
     println("── = $(Array(e)[]/Array(n)[])") 
     etol = Array(e)[]/Array(n)[]
+
+    # Zygote.@ignore begin
+    #     lr2 = Array(ein"(((((gea,abc),cd),ehfbpq),ghi),ij),dfj -> pq"(BgFL,BgALu,Cu[1,2],ap,BgALu,Cu[1,2],BgARu))
+    #     n2 = ein"pp -> "(lr2)[]
+    #     Mx = ein"pq, pq -> "(lr2,σx)[]/n2
+    #     My = ein"pq, pq -> "(lr2,σy)[]/n2
+    #     Mz = ein"pq, pq -> "(lr2,σz)[]/n2
+    #     @show Mx,My,Mz
+    #     println("M = $((Mx^2+My^2+Mz^2)^0.5)")
+    # end
 
     return etol
 end
