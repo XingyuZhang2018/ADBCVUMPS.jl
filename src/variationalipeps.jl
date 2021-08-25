@@ -22,15 +22,15 @@ function energy(h, bulk, oc, key; verbose = false)
     a = reshape(a, Ni, Nj)
 
     env = obs_bcenv(model, a; atype = atype, D = D^2, χ = χ, tol = tol, maxiter = maxiter, miniter = miniter, verbose = verbose, savefile = true, folder = folder)
-    e = expectationvalue(h, ap, env, oc)
+    e = expectationvalue(h, ap, env, oc, key)
     return e
 end
 
 function optcont(D::Int, χ::Int)
     sd = Dict('n' => D^2, 'f' => χ, 'd' => D^2, 'e' => χ, 'o' => D^2, 'h' => χ, 'j' => χ, 'i' => D^2, 'k' => D^2, 'r' => 2, 's' => 2, 'q' => 2, 'a' => χ, 'c' => χ, 'p' => 2, 'm' => χ, 'g' => D^2, 'l' => χ, 'b' => D^2)
     oc1 = optimize_greedy(ein"abc,cde,bnodpq,anm,ef,ml,hij,fgh,okigrs,lkj -> pqrs", sd; method=MinSpaceDiff())
-    sd = Dict('a' => χ, 'b' => D^2, 'c' => χ, 'd' => χ, 'e' => D^2, 'f' => D^2, 'g' => χ, 'h' => D^2, 'i' => χ, 'j' => D^2, 'k' => D^2, 'l' => χ, 'm' => D^2, 'n' => χ, 'o' => χ, 'r' => 2, 's' => 2, 'p' => 2, 'q' => 2)
-    oc2 = optimize_greedy(ein"abc,cd,gea,ehfbpq,dfi,ljg,jmkhrs,iko,lmn,no -> pqrs", sd; method=MinSpaceDiff())
+    sd = Dict('a' => χ, 'b' => D^2, 'c' => χ, 'd' => D^2, 'e' => D^2, 'f' => D^2, 'g' => D^2, 'h' => D^2, 'i' => χ, 'j' => D^2, 'k' => χ, 'r' => 2, 's' => 2, 'p' => 2, 'q' => 2, 'l' => χ, 'm' => χ)
+    oc2 = optimize_greedy(ein"adgi,abl,lc,dfebpq,gjhfrs,ijm,mk,cehk -> pqrs", sd; method=MinSpaceDiff())
     oc1, oc2
 end
 
@@ -41,8 +41,9 @@ return the expectationvalue of a two-site operator `h` with the sites
 described by rank-6 tensor `ap` each and an environment described by
 a `SquareBCVUMPSRuntime` `env`.
 """
-function expectationvalue(h, ap, env, oc)
+function expectationvalue(h, ap, env, oc, key)
     M, ALu, Cu, ARu, ALd, Cd, ARd, FL, FR, FLu, FRu = env
+    folder, model, atype, D, χ, tol, maxiter, miniter = key
     oc1, oc2 = oc
     Ni,Nj = size(M)
     hx, hy, hz = h
@@ -63,12 +64,31 @@ function expectationvalue(h, ap, env, oc)
         etol += Array(e)[]/Array(n)[]
     end
     
+    chkp_file_bgobs = folder*"$(model)_$(atype)/bgobs_D$(D)_chi$(χ).jld2"
+    if isfile(chkp_file_bgobs)   
+        Zygote.@ignore begin
+            println("←→ observable environment load from $(chkp_file_bgobs)")
+            BgFL, BgFR = load(chkp_file_bgobs)["env"]
+            BgFL, BgFR = Array{atype{Float64,4},2}(BgFL), Array{atype{Float64,4},2}(BgFR)
+        end
+        _, BgFL = bigleftenv(ALu, ALd, M, BgFL)
+        _, BgFR = bigrightenv(ARu, ARd, M, BgFR)
+    else
+        _, BgFL = bigleftenv(ALu, ALd, M)
+        _, BgFR = bigrightenv(ARu, ARd, M)
+    end
+
+    Zygote.@ignore begin
+        envsave = (Array{Array{Float64,4},2}(BgFL), Array{Array{Float64,4},2}(BgFR))
+        save(chkp_file_bgobs, "env", envsave)
+    end
+
     for j = 1:Nj, i = 1:Ni
         if (i,j) in [(1,1),(2,2)]
             hij = hz
             ir = i + 1 - Ni * (i==Ni)
             # irr = i + 2 - Ni * (i + 2 > Ni)
-            lr2 = oc2(ALu[i,j],Cu[i,j],FLu[i,j],ap[i,j],FRu[i,j],FL[ir,j],ap[ir,j],FR[ir,j],ALd[i,j],Cd[i,j])
+            lr2 = oc2(BgFL[i,j],ALu[i,j],Cu[i,j],ap[i,j],ap[ir,j],ALd[i,j],Cd[i,j],BgFR[i,j])
             e2 = ein"pqrs, pqrs -> "(lr2,hij)
             n2 = ein"pprr -> "(lr2)
             println("| = $(Array(e2)[]/Array(n2)[])") 
@@ -109,7 +129,7 @@ ito12(i,Ni) = mod(mod(i,Ni) + Ni*(mod(i,Ni)==0) + fld(i,Ni) + 1 - (mod(i,Ni)==0)
 
 function buildbcipeps(bulk,Ni,Nj)
     bulk /= norm(bulk)
-    reshape([bulk[:,:,:,:,:,i] for i = 1:Ni*Nj], (Ni, Nj))
+    reshape([bulk[:,:,:,:,:,ito12(i,Ni)] for i = 1:Ni*Nj], (Ni, Nj))
 end
 
 """
@@ -127,7 +147,7 @@ function init_ipeps(model::HamiltonianModel; folder::String="./data/", atype = A
         bulk = load(chkp_file)["bcipeps"]
         verbose && println("load BCiPEPS from $chkp_file")
     else
-        bulk = rand(D,D,D,D,2,4)
+        bulk = rand(D,D,D,D,2,2)
         verbose && println("random initial BCiPEPS $chkp_file")
     end
     bulk /= norm(bulk)
