@@ -63,19 +63,20 @@ function expectationvalue(h, ap, env, oc)
     BgFR = CuArray(reshape(ein"abc, cde -> adbe"(FR[1,2],FR[2,2]), (χ, D^2, χ)))
 
     lr = oc(BgFL,BgALu,ap,BgALu,CuArray(Cu[1,2]),CuArray(Cu[1,2]),BgFR,BgARu,ap,BgARu)
+    # lr = (lr + permutedims(lr, (2,1,4,3)))/2
     e = ein"pqrs, pqrs -> "(lr,CuArray(h))
     n = ein"pprr -> "(lr)
     println("── = $(Array(e)[]/Array(n)[])") 
     etol = Array(e)[]/Array(n)[]
 
     # Zygote.@ignore begin
-    #     lr2 = Array(ein"(((((gea,abc),cd),ehfbpq),ghi),ij),dfj -> pq"(BgFL,BgALu,Cu[1,2],ap,BgALu,Cu[1,2],BgARu))
-    #     n2 = ein"pp -> "(lr2)[]
-    #     Mx = ein"pq, pq -> "(lr2,σx)[]/n2
-    #     My = ein"pq, pq -> "(lr2,σy)[]/n2
-    #     Mz = ein"pq, pq -> "(lr2,σz)[]/n2
+    #     Mx = ein"pqrr, pq -> "(Array(lr),σx/2)[]/Array(n)[]
+    #     My = ein"pqrr, pq -> "(Array(lr),σy/2)[]/Array(n)[]
+    #     Mz = ein"pqrr, pq -> "(Array(lr),σz/2)[]/Array(n)[]
     #     @show Mx,My,Mz
     #     println("M = $((Mx^2+My^2+Mz^2)^0.5)")
+    #     # ρ = reshape(permutedims(lr, (1,3,2,4)), 4, 4)
+    #     @show norm(lr-permutedims(lr, (2,1,4,3)))
     # end
 
     return etol
