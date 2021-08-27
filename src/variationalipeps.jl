@@ -53,14 +53,19 @@ a `SquareBCVUMPSRuntime` `env`.
 function expectationvalue(h, ap, env, oc)
     _, ALu, Cu, ARu, FL, FR = env
     χ, D, _ = size(ALu[1,1]) 
+    a = CuArray(ein"ijklaa -> ijkl"(ap))
     ap /= norm(ap)
     ap = CuArray(ap)
 
     BgALu = CuArray(reshape(ein"adb, bec -> adec"(ALu[1,1],ALu[1,2]), (χ, D^2, χ)))
     BgARu = CuArray(reshape(ein"adb, bec -> adec"(ARu[1,1],ARu[1,2]), (χ, D^2, χ)))
     
-    BgFL = CuArray(reshape(ein"cde, abc -> abde"(FL[1,1],FL[2,1]), (χ, D^2, χ)))
-    BgFR = CuArray(reshape(ein"abc, cde -> adbe"(FR[1,2],FR[2,2]), (χ, D^2, χ)))
+    # BgFL = CuArray(reshape(ein"cde, abc -> abde"(FL[1,1],FL[2,1]), (χ, D^2, χ)))
+    # BgFR = CuArray(reshape(ein"abc, cde -> adbe"(FR[1,2],FR[2,2]), (χ, D^2, χ)))
+    _, BgFL = leftenv(reshape([BgALu],1,1), reshape([BgALu],1,1), reshape([a],1,1))
+    _, BgFR = rightenv(reshape([BgARu],1,1), reshape([BgARu],1,1), reshape([a],1,1))
+    BgFL = BgFL[1]
+    BgFR = BgFR[1]
 
     lr = oc(BgFL,BgALu,ap,BgALu,CuArray(Cu[1,2]),CuArray(Cu[1,2]),BgFR,BgARu,ap,BgARu)
     # lr = (lr + permutedims(lr, (2,1,4,3)))/2
