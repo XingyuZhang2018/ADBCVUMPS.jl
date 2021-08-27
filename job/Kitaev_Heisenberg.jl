@@ -66,7 +66,7 @@ function main()
     opiter = parsed_args["opiter"]
     f_tol = parsed_args["f_tol"]
     folder = parsed_args["folder"]
-    bulk, key = init_ipeps(Kitaev_Heisenberg(degree); folder = folder, atype = Array, D=D, χ=χ, tol=tol, maxiter=maxiter, miniter=miniter)
+    bulk, key = init_ipeps(Kitaev_Heisenberg(degree); folder = folder, atype = CuArray, D=D, χ=χ, tol=tol, maxiter=maxiter, miniter=miniter)
     optimiseipeps(bulk, key; f_tol = f_tol, opiter = opiter, verbose = true)
 end
 

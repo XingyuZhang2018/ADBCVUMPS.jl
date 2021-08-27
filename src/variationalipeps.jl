@@ -129,7 +129,7 @@ ito12(i,Ni) = mod(mod(i,Ni) + Ni*(mod(i,Ni)==0) + fld(i,Ni) + 1 - (mod(i,Ni)==0)
 
 function buildbcipeps(bulk,Ni,Nj)
     bulk /= norm(bulk)
-    reshape([bulk[:,:,:,:,:,ito12(i,Ni)] for i = 1:Ni*Nj], (Ni, Nj))
+    reshape([bulk[:,:,:,:,:,i] for i = 1:Ni*Nj], (Ni, Nj))
 end
 
 """
@@ -147,7 +147,7 @@ function init_ipeps(model::HamiltonianModel; folder::String="./data/", atype = A
         bulk = load(chkp_file)["bcipeps"]
         verbose && println("load BCiPEPS from $chkp_file")
     else
-        bulk = rand(D,D,D,D,2,2)
+        bulk = rand(D,D,D,D,2,4)
         verbose && println("random initial BCiPEPS $chkp_file")
     end
     bulk /= norm(bulk)

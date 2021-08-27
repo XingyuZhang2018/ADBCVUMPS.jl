@@ -1,21 +1,19 @@
 #!/bin/bash
 model=Kitaev_Heisenberg{Float64}
-D=3
+D=4
 chi=20
+atype=CuArray
+degree_right=266.0
+degree_wrong=265.0
 
-degree_right=85.0
-degree_wrong=80.0
+cd ~/../../data1/xyzhang/ADBCVUMPS/Kitaev_Heisenberg/
 
-cd ../data/all/
+cp -r ${model}\(${degree_right}\)_${atype} ${model}\(${degree_wrong}\)_${atype}
 
-cp ${model}\(${degree_right}\)_Array/${model}\(${degree_right}\)_Array_D${D}_chi${chi}_tol1.0e-10_maxiter10_miniter5.jld2 ${model}\(${degree_wrong}\)_Array/${model}\(${degree_wrong}\)_Array_D${D}_chi${chi}_tol1.0e-10_maxiter10_miniter5.jld2
+rm ${model}\(${degree_wrong}\)_${atype}/${model}\(${degree_right}\)_${atype}_D${D}_chi${chi}_tol1.0e-10_maxiter10_miniter2.log
 
-cp ${model}\(${degree_right}\)_Array/up_D$[$D**2]_chi${chi}.jld2 ${model}\(${degree_wrong}\)_Array/up_D$[$D**2]_chi${chi}.jld2
+mv ${model}\(${degree_wrong}\)_${atype}/${model}\(${degree_right}\)_${atype}_D${D}_chi${chi}_tol1.0e-10_maxiter10_miniter2.jld2 ${model}\(${degree_wrong}\)_${atype}/${model}\(${degree_wrong}\)_${atype}_D${D}_chi${chi}_tol1.0e-10_maxiter10_miniter2.jld2
 
-cp ${model}\(${degree_right}\)_Array/down_D$[$D**2]_chi${chi}.jld2 ${model}\(${degree_wrong}\)_Array/down_D$[$D**2]_chi${chi}.jld2
-
-rm ${model}\(${degree_wrong}\)_Array/${model}\(${degree_wrong}\)_Array_D${D}_chi${chi}_tol1.0e-10_maxiter10_miniter5.log
-
-cd ../../job/
+cd ~/research/ADBCVUMPS.jl/job/
 
 qsub -V degree${degree_wrong}_D${D}_chi${chi}
