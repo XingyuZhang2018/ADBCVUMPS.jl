@@ -11,7 +11,7 @@ using TimerOutputs
 return the energy of the `bcipeps` 2-site hamiltonian `h` and calculated via a
 BCVUMPS with parameters `χ`, `tol` and `maxiter`.
 """
-function energy(h, bulk, oc, key; verbose = false)
+function energy(h, bulk, oc, key; verbose = true, savefile = true)
     folder, model, atype, D, χ, tol, maxiter, miniter = key
     # bcipeps = indexperm_symmetrize(bcipeps)  # NOTE: this is not good
     Ni,Nj = size(bulk)
@@ -21,7 +21,7 @@ function energy(h, bulk, oc, key; verbose = false)
     a = [ein"ijklaa -> ijkl"(ap[i]) for i = 1:Ni*Nj]
     a = reshape(a, Ni, Nj)
 
-    env = obs_bcenv(model, a; atype = atype, D = D^2, χ = χ, tol = tol, maxiter = maxiter, miniter = miniter, verbose = verbose, savefile = true, folder = folder)
+    env = obs_bcenv(model, a; atype = atype, D = D^2, χ = χ, tol = tol, maxiter = maxiter, miniter = miniter, verbose = verbose, savefile = savefile, folder = folder)
     e = expectationvalue(h, ap, env, oc, key)
     return e
 end

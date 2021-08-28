@@ -3,33 +3,34 @@ using ADBCVUMPS: buildbcipeps, energy, optcont
 using CUDA
 using Plots
 
-function energy_χ(bcipeps::BCIPEPS{LT}, key, χ) where LT
-    model, atype, D, _, tol, maxiter = key
-    key = (model, atype, D, χ, tol, maxiter)
-    # h = atype(hamiltonian(model))
+function new_energy(bulk, new_key)
+    folder, model, atype, D, χ, tol, maxiter, miniter = new_key
     hx, hy, hz = hamiltonian(model)
     h = (atype(hx),atype(hy),atype(hz))
-    Ni, Nj = 2, 2
     oc = optcont(D, χ)
-    x0 = zeros(D,D,D,D,2,2)
-    x0[:,:,:,:,:,1] = bcipeps.bulk[1,1]
-    x0[:,:,:,:,:,2] = bcipeps.bulk[2,1]
-    energy(h, BCIPEPS{LT}(buildbcipeps(atype(x0),Ni,Nj)), oc, key; verbose=true)
+    energy(h, buildbcipeps(atype(bulk),2,2), oc, new_key; verbose = true, savefile = true)
 end
 
-model = Kitaev(-1.0,-1.0,-1.0)
-bcipeps, key = init_ipeps(model; atype = CuArray, D=4, χ=20, tol=1e-10, maxiter=10)
-x = 10:5:80
+model = Kitaev_Heisenberg(270.0)
+folder = "E:/1 - research/4.9 - AutoDiff/data/ADBCVUMPS.jl/Kitaev_Heisenberg/all/"
+atype, D, χ, tol, maxiter, miniter = CuArray, 4, 20, 1e-10, 10, 2
+
+
+bulk, _ = init_ipeps(model; folder = folder, atype = atype, D=D, χ=χ, tol=tol, maxiter=maxiter, miniter=miniter)
+
+x = 20:10:100
 yenergy = []
-ymag = []
+# ymag = []
 for χ in x
-    ener, mag = energy_χ(bcipeps, key, χ)
+    new_key = (folder, model, atype, D, χ, tol, maxiter, miniter)
+    ener = new_energy(bulk, new_key)
     yenergy = [yenergy; ener]
-    ymag = [ymag; mag]
+    # ymag = [ymag; mag]
 end
+yenergy
 energyplot = plot()
-magplot = plot()
+# magplot = plot()
 plot!(energyplot, x, yenergy, title = "energy", label = "energy",legend = :bottomright, xlabel = "χ", ylabel = "E", lw = 3)
-plot!(magplot, x, ymag, title = "magnetization", label = "magnetization",legend = :bottomright, xlabel = "χ", ylabel = "M", lw = 3)
-obs = plot(energyplot, magplot, layout = (2,1), xlabel="χ", size = [800, 1000])
-savefig(obs,"./plot/obs-χ_$(key).svg")
+# plot!(magplot, x, ymag, title = "magnetization", label = "magnetization",legend = :bottomright, xlabel = "χ", ylabel = "M", lw = 3)
+# obs = plot(energyplot, magplot, layout = (2,1), xlabel="χ", size = [800, 1000])
+# savefig(obs,"./plot/obs-χ_$(key).svg")
