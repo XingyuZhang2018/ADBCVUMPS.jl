@@ -1,12 +1,12 @@
 #!/bin/bash
 model=Kitaev_Heisenberg{Float64}
 D=4
-chi=20
+chi=50
 atype=CuArray
 degree_right=266.0
 degree_wrong=265.0
 
-cd ~/../../data1/xyzhang/ADBCVUMPS/Kitaev_Heisenberg/
+cd ~/../../data/xyzhang/ADBCVUMPS/Kitaev_Heisenberg/
 
 cp -r ${model}\(${degree_right}\)_${atype} ${model}\(${degree_wrong}\)_${atype}
 
