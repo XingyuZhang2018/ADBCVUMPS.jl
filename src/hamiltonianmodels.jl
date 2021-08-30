@@ -130,3 +130,30 @@ function hamiltonian(model::Kitaev_Heisenberg)
     hz = Heisenberg + sin(model.ϕ / 180 * pi) * ein"ij,kl -> ijkl"(σz, σz)
     real(hx / 2), real(hy / 2), real(hz / 2)
 end
+
+@doc raw"
+    K_J_Γ_Γ′{T<:Real} <: HamiltonianModel
+
+return a struct representing the K_J_Γ_Γ′ model
+"
+struct K_J_Γ_Γ′{T<:Real} <: HamiltonianModel
+    K::T
+    J::T
+    Γ::T
+    Γ′::T
+end
+
+"""
+    hamiltonian(model::Kitaev_Heisenberg)
+
+return the K_J_Γ_Γ′ hamiltonian for the `model` as a two-site operator.
+"""
+function hamiltonian(model::K_J_Γ_Γ′)
+    Heisenberg = model.J * (ein"ij,kl -> ijkl"(σz, σz) +
+                            ein"ij,kl -> ijkl"(σx, σx) +
+                            ein"ij,kl -> ijkl"(σy, σy) )
+    hx = Heisenberg + model.K * ein"ij,kl -> ijkl"(σx, σx) + model.Γ * (ein"ij,kl -> ijkl"(σy, σz) + ein"ij,kl -> ijkl"(σz, σy)) + model.Γ′ * (ein"ij,kl -> ijkl"(σx, σy) + ein"ij,kl -> ijkl"(σy, σx) + ein"ij,kl -> ijkl"(σz, σx) + ein"ij,kl -> ijkl"(σx, σz))
+    hy = Heisenberg + model.K * ein"ij,kl -> ijkl"(σy, σy) + model.Γ * (ein"ij,kl -> ijkl"(σx, σz) + ein"ij,kl -> ijkl"(σz, σx)) + model.Γ′ * (ein"ij,kl -> ijkl"(σy, σx) + ein"ij,kl -> ijkl"(σx, σy) + ein"ij,kl -> ijkl"(σz, σy) + ein"ij,kl -> ijkl"(σy, σz))
+    hz = Heisenberg + model.K * ein"ij,kl -> ijkl"(σz, σz) + model.Γ * (ein"ij,kl -> ijkl"(σx, σy) + ein"ij,kl -> ijkl"(σy, σx)) + model.Γ′ * (ein"ij,kl -> ijkl"(σz, σx) + ein"ij,kl -> ijkl"(σx, σz) + ein"ij,kl -> ijkl"(σy, σz) + ein"ij,kl -> ijkl"(σz, σy))
+    real(hx / 2), real(hy / 2), real(hz / 2)
+end

@@ -53,10 +53,10 @@ function magnetisation(degree, folder, D, χ, tol, maxiter, miniter)
 end
 
 Random.seed!(100)
-folder, D, χ, tol, maxiter, miniter = "./../../../../data/xyzhang/ADBCVUMPS/Kitaev_Heisenberg/", 4, 50, 1e-10, 10, 2
+folder, D, χ, tol, maxiter, miniter = "./../../../../data1/xyzhang/ADBCVUMPS/Kitaev_Heisenberg/", 4, 20, 1e-10, 10, 2
 
 magplot = plot()
-degree = 85.0:1.0:95.0
+degree = [250.0:2.5:262.5;265.0:1.0:275.0]
 mag, ferro, stripy, zigzag, Neel = [], [], [], [], []
 for x in degree
     y1, y2, y3, y4, y5 = magnetisation(x, folder, D, χ, tol, maxiter, miniter)
@@ -67,8 +67,8 @@ for x in degree
     Neel = [Neel; y5]
 end
 plot!(magplot, degree, mag, shape = :circle, title = "mag-ϕ", label = "mag D = $(D) χ=$(χ)",legend = :bottomright, xlabel = "ϕ degree", lw = 2)
-# plot!(magplot, degree, ferro, title = "mag-ϕ", label = "ferro D = $(D)",legend = :bottomright, xlabel = "ϕ degree", ylabel = "ferro", lw = 2)
-# plot!(magplot, degree, stripy, title = "mag-ϕ", label = "stripy D = $(D)",legend = :bottomright, xlabel = "ϕ degree", ylabel = "stripy", lw = 2)
-plot!(magplot, degree, zigzag, shape = :cross, title = "mag-ϕ", label = "zigzag D = $(D) χ=$(χ)",legend = :bottomright, xlabel = "ϕ degree", lw = 2)
-plot!(magplot, degree, Neel, shape = :diamond, title = "mag-ϕ", label = "Neel D = $(D) χ=$(χ)",legend = :bottomright, xlabel = "ϕ degree", ylabel = "Order Parameters", lw = 2)
+plot!(magplot, degree, ferro, title = "mag-ϕ", label = "ferro D = $(D)",legend = :bottomright, xlabel = "ϕ degree", ylabel = "ferro", lw = 2)
+plot!(magplot, degree, stripy, title = "mag-ϕ", label = "stripy D = $(D)",legend = :bottomright, xlabel = "ϕ degree", ylabel = "stripy", lw = 2)
+# plot!(magplot, degree, zigzag, shape = :cross, title = "mag-ϕ", label = "zigzag D = $(D) χ=$(χ)",legend = :bottomright, xlabel = "ϕ degree", lw = 2)
+# plot!(magplot, degree, Neel, shape = :diamond, title = "mag-ϕ", label = "Neel D = $(D) χ=$(χ)",legend = :bottomright, xlabel = "ϕ degree", ylabel = "Order Parameters", lw = 2)
 # savefig(magplot,"./plot/mag-D$(D)_χ$(χ).svg")
