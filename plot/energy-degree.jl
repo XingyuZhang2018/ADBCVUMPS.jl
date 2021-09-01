@@ -15,7 +15,7 @@ end
 energyplot = plot()
 for D = 4
     χ = 20
-    degree = 265.0:1.0:275.0
+    degree = [250.0:2.5:262.5;265.0:1.0:275.0;277.5:2.5:290.0]
     yenergy = []
     folder = "./../../../../data1/xyzhang/ADBCVUMPS/Kitaev_Heisenberg/"
     for x in degree

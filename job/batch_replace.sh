@@ -3,8 +3,8 @@ model=Kitaev_Heisenberg{Float64}
 D=4
 chi=20
 atype=CuArray
-degree_right=275.0
-degree_wrong=290.0
+degree_right=277.5
+degree_wrong=285.0
 
 cd ~/../../data1/xyzhang/ADBCVUMPS/Kitaev_Heisenberg/
 

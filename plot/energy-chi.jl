@@ -2,6 +2,7 @@ using ADBCVUMPS
 using ADBCVUMPS: buildbcipeps, energy, optcont
 using CUDA
 using Plots
+CUDA.allowscalar(false)
 
 device!(0)
 function new_energy(bulk, new_key)
@@ -13,7 +14,7 @@ function new_energy(bulk, new_key)
 end
 
 model = Kitaev_Heisenberg(88.0)
-folder = "./../../../../data/xyzhang/ADBCVUMPS/Kitaev_Heisenberg/"
+folder = "./../../../../data1/xyzhang/ADBCVUMPS/Kitaev_Heisenberg/"
 atype, D, χ, tol, maxiter, miniter = CuArray, 4, 50, 1e-10, 10, 2
 
 bulk, _ = init_ipeps(model; folder = folder, atype = atype, D=D, χ=χ, tol=tol, maxiter=maxiter, miniter=miniter)
