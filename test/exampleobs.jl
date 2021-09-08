@@ -1,47 +1,44 @@
 using ADBCVUMPS
 using ADBCVUMPS:num_grad
 using BCVUMPS
-using BCVUMPS:obs_bcenv,magnetisation,Z,magofdβ
+using BCVUMPS:obs_bcenv,magnetisation,Z,magofdβ,bcvumps_env
+using CUDA
 using Random
 using Test
 using Zygote
 
-@testset "$(Ni)x$(Nj) ising with $atype{$dtype}" for atype in [Array], dtype in [Float64], Ni = [2], Nj = [2]
+@testset "$(Ni)x$(Nj) ising with $atype" for atype in [Array, CuArray], Ni = [2], Nj = [2]
     Random.seed!(100)
     model = Ising(Ni,Nj)
-    β,D = 0.6,10
     function foo1(β) 
-        magnetisation(bcvumps_env(model,β,D; atype = atype, verbose = true), model, β)
-    end
-    @test isapprox(Zygote.gradient(foo1,β)[1], magofdβ(model,β), atol = 1e-5)
-end
-
-@testset "$(Ni)x$(Nj) up and down ising with $atype{$dtype}" for atype in [Array], dtype in [Float64], Ni = [2], Nj = [2]
-    Random.seed!(10)
-    model = Ising(Ni,Nj)
-    χ = 10
-    # function foo1(β)
-    #     M = model_tensor(model, β; atype = atype)
-    #     env = obs_bcenv(model, M; atype = atype, D = 2, χ = 10, tol = 1e-10, maxiter = 10, verbose = true)
-    #     -log(Z(env))
-    # end
-    function foo2(β)
         M = model_tensor(model, β; atype = atype)
-        env = obs_bcenv(model, M; atype = atype, D = 2, χ = χ, tol = 1e-20, maxiter = 10, verbose = true, savefile = true)
+        env = obs_bcenv(model, M; atype = atype, χ = 10, miniter = 2, verbose = true, updown = false)
         magnetisation(env,model,β)
     end
 
-    for β = 0.8
-        @test isapprox(Zygote.gradient(foo2,β)[1], magofdβ(model,β), atol = 1e-6)  
+    function foo2(β) 
+        M = model_tensor(model, β; atype = atype)
+        env = obs_bcenv(model, M; atype = atype, χ = 10, miniter = 2, verbose = true, updown = true)
+        magnetisation(env,model,β)
+    end
+    
+    for β = 0.2:0.2:0.8
+        @test isapprox(Zygote.gradient(foo1,β)[1], magofdβ(model,β), atol = 1e-5)
+    end
+
+    for β = 0.1:0.1:0.4
+        @test isapprox(Zygote.gradient(foo2,β)[1], magofdβ(model,β), atol = 1e-5)
     end
 end
 
-@testset "J1-J2-2x2-ising with $atype{$dtype}" for atype in [Array], dtype in [Float64], Ni = [2], Nj = [2]
+@testset "J1-J2-2x2-ising with $atype" for atype in [Array], Ni = [2], Nj = [2]
     Random.seed!(100)
-    model = Ising22(1.0)
-    β,D = 0.5,10
-    function foo1(β) 
-        -log(Z(bcvumps_env(model,β,D; atype = atype)))
+    model = Ising22(2.0)
+    β = 0.3
+    function foo1(β)
+        M = model_tensor(model, β; atype = atype)
+        env = obs_bcenv(model, M; atype = atype, χ = 10, miniter = 10, verbose = true, updown = true)
+        magnetisation(env,model,β)
     end
-    @test isapprox(Zygote.gradient(foo1,β)[1], num_grad(foo1,β), atol = 1e-6)
+    @test isapprox(Zygote.gradient(foo1,β)[1], num_grad(foo1,β; δ=1e-2), atol = 1e-5)
 end

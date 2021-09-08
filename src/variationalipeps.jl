@@ -21,18 +21,32 @@ function energy(h, bulk, oc, key; verbose = true, savefile = true)
     a = [ein"ijklaa -> ijkl"(ap[i]) for i = 1:Ni*Nj]
     a = reshape(a, Ni, Nj)
 
-    env = obs_bcenv(model, a; atype = atype, D = D^2, χ = χ, tol = tol, maxiter = maxiter, miniter = miniter, verbose = verbose, savefile = savefile, folder = folder)
+    env = obs_bcenv(model, a; atype = atype, χ = χ, tol = tol, maxiter = maxiter, miniter = miniter, verbose = verbose, savefile = savefile, folder = folder)
     e = expectationvalue(h, ap, env, oc, key)
     return e
 end
 
+"""
+    oc1, oc2 = optcont(D::Int, χ::Int)
+
+optimise the follow two einsum contractions for the given `D` and `χ` which are used to calculate the energy of the 2-site hamiltonian:
+
+```
+                                          a ────┬──c─ d
+a ────┬──c──d──┬──── f                    │     b     │
+│     b        e     │                    ├─ e ─┼─ f ─┤
+├─ g ─┼─   h  ─┼─ i ─┤                    │     g     │
+│     k        n     │                    ├─ h ─┼─ i ─┤
+j ────┴──l──m──┴──── o                    │     k     │
+                                          j ────┴──l─ m 
+```
+where the central two block are six order tensor have extra bond `pq` and `rs`
+"""
 function optcont(D::Int, χ::Int)
-    sd = Dict('n' => D^2, 'f' => χ, 'd' => D^2, 'e' => χ, 'o' => D^2, 'h' => χ, 'j' => χ, 'i' => D^2, 'k' => D^2, 'r' => 2, 's' => 2, 'q' => 2, 'a' => χ, 'c' => χ, 'p' => 2, 'm' => χ, 'g' => D^2, 'l' => χ, 'b' => D^2)
-    oc1 = optimize_greedy(ein"abc,cde,bnodpq,anm,ef,ml,hij,fgh,okigrs,lkj -> pqrs", sd; method=MinSpaceDiff())
-    sd = Dict('a' => χ, 'b' => D^2, 'c' => χ, 'd' => D^2, 'e' => D^2, 'f' => D^2, 'g' => D^2, 'h' => D^2, 'i' => χ, 'j' => D^2, 'k' => χ, 'r' => 2, 's' => 2, 'p' => 2, 'q' => 2, 'l' => χ, 'm' => χ)
-    oc2 = optimize_greedy(ein"adgi,abl,lc,dfebpq,gjhfrs,ijm,mk,cehk -> pqrs", sd; method=MinSpaceDiff())
-    # sd = Dict('a' => χ, 'b' => D^2, 'c' => χ, 'd' => χ, 'e' => D^2, 'f' => D^2, 'g' => χ, 'h' => D^2, 'i' => χ, 'j' => D^2, 'k' => D^2, 'l' => χ, 'm' => D^2, 'n' => χ, 'o' => χ, 'r' => 2, 's' => 2, 'p' => 2, 'q' => 2)
-    # oc2 = optimize_greedy(ein"abc,cd,gea,ehfbpq,dfi,ljg,jmkhrs,iko,lmn,no -> pqrs", sd; method=MinSpaceDiff())
+    sd = Dict('a' => χ, 'b' => D^2,'c' => χ, 'd' => χ, 'e' => D^2, 'f' => χ, 'g' => D^2, 'h' => D^2, 'i' => D^2, 'j' => χ, 'k' => D^2, 'l' => χ, 'm' => χ, 'n' => D^2, 'o' => χ, 'p' => 2, 'q' => 2, 'r' => 2, 's' => 2)
+    oc1 = optimize_greedy(ein"agj,abc,gkhbpq,jkl,cd,lm,fio,def,hniers,mno -> pqrs", sd; method=MinSpaceDiff())
+    sd = Dict('a' => χ, 'b' => D^2, 'c' => χ, 'd' => χ, 'e' => D^2, 'f' => D^2, 'g' => D^2, 'h' => D^2, 'i' => D^2, 'j' => χ, 'k' => D^2, 'l' => χ, 'm' => χ, 'p' => 2, 'q' => 2, 'r' => 2, 's' => 2)
+    oc2 = optimize_greedy(ein"aehj,abc,cd,egfbpq,hkigrs,jkl,lm,dfim -> pqrs", sd; method=MinSpaceDiff())
     oc1, oc2
 end
 
@@ -59,7 +73,7 @@ function expectationvalue(h, ap, env, oc, key)
         end
         ir = Ni + 1 - i
         jr = j + 1 - (j==Nj) * Nj
-        lr = oc1(FL[i,j],ALu[i,j],ap[i,j],conj(ALd[ir,j]),Cu[i,j],conj(Cd[ir,j]),FR[i,jr],ARu[i,jr],ap[i,jr],conj(ARd[ir,jr]))
+        lr = oc1(FL[i,j],ALu[i,j],ap[i,j],ALd[ir,j],Cu[i,j],Cd[ir,j],FR[i,jr],ARu[i,jr],ap[i,jr],ARd[ir,jr])
         e = ein"pqrs, pqrs -> "(lr,hij)
         n = ein"pprr -> "(lr)
         println("── = $(Array(e)[]/Array(n)[])") 
@@ -71,7 +85,7 @@ function expectationvalue(h, ap, env, oc, key)
         Zygote.@ignore begin
             println("←→ observable environment load from $(chkp_file_bgobs)")
             BgFL, BgFR = load(chkp_file_bgobs)["env"]
-            BgFL, BgFR = Array{atype{Float64,4},2}(BgFL), Array{atype{Float64,4},2}(BgFR)
+            BgFL, BgFR = Array{atype{ComplexF64,4},2}(BgFL), Array{atype{ComplexF64,4},2}(BgFR)
         end
         _, BgFL = bigleftenv(ALu, ALd, M, BgFL)
         _, BgFR = bigrightenv(ARu, ARd, M, BgFR)
@@ -81,7 +95,7 @@ function expectationvalue(h, ap, env, oc, key)
     end
 
     Zygote.@ignore begin
-        envsave = (Array{Array{Float64,4},2}(BgFL), Array{Array{Float64,4},2}(BgFR))
+        envsave = (Array{Array{ComplexF64,4},2}(BgFL), Array{Array{ComplexF64,4},2}(BgFR))
         save(chkp_file_bgobs, "env", envsave)
     end
 
@@ -150,7 +164,7 @@ function init_ipeps(model::HamiltonianModel; folder::String="./data/", atype = A
         bulk = load(chkp_file)["bcipeps"]
         verbose && println("load BCiPEPS from $chkp_file")
     else
-        bulk = rand(D,D,D,D,2,4)
+        bulk = rand(ComplexF64,D,D,D,D,2,4)
         verbose && println("random initial BCiPEPS $chkp_file")
     end
     bulk /= norm(bulk)
