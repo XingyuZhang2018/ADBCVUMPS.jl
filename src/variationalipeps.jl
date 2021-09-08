@@ -193,9 +193,9 @@ function optimiseipeps(bulk, key; f_tol = 1e-6, opiter = 100, verbose= false, op
     function g(x)
         @timeit to "backward" begin
             grad = Zygote.gradient(ff,atype(x))[1]
-            if norm(grad) > 1.0
-                grad /= norm(grad)
-            end
+            # if norm(grad) > 1.0
+            #     grad /= norm(grad)
+            # end
             return grad
         end
     end
