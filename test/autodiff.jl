@@ -11,12 +11,13 @@ using Test
 using Zygote
 CUDA.allowscalar(false)
 
-@testset "matrix autodiff with $atype{$dtype}" for atype in [Array], dtype in [Float64]
-    a = atype(randn(10, 10))
+@testset "matrix autodiff with $atype{$dtype}" for atype in [Array, CuArray], dtype in [Float64, ComplexF64]
+    Random.seed!(100)
+    a = atype(randn(dtype, 10, 10))
     @test Zygote.gradient(norm, a)[1] ≈ num_grad(norm, a)
 
     function foo1(x) 
-        sum(atype(Float64[x 2x; 3x x]))
+        norm(atype(dtype[x 2x; 3x x]))
     end
     @test Zygote.gradient(foo1, 1)[1] ≈ num_grad(foo1, 1)
 
@@ -29,23 +30,14 @@ CUDA.allowscalar(false)
     function foo2(x)
         # B[i,j] = A[i,j].*x   # mistake
         B = reshape([A[i]*x for i=1:4],2,2)
-        return sum(sum(B))
+        return norm(sum(B))
     end
     @test Zygote.gradient(foo2, 1)[1] ≈ num_grad(foo2, 1)
-
-    function foo3(x)
-        A = Float64[x 2x; 3x x]
-        A = ein"ab,bc -> ac"(A,A)
-        return tr(A)
-    end
-    @show Zygote.gradient(foo3, 1)[1],num_grad(foo3, 1)
-    @test Zygote.gradient(foo3, 1)[1] ≈ num_grad(foo3, 1)
 end
 
-@testset "$(Ni)x$(Nj) model_tensor with $atype{$dtype}" for atype in [Array, CuArray], dtype in [Float64], Ni = [1,2,3], Nj = [1,2,3]
+@testset "$(Ni)x$(Nj) model_tensor with $atype{$dtype}" for atype in [Array, CuArray], dtype in [Float64, ComplexF64], Ni = [1,2,3], Nj = [1,2,3]
     Random.seed!(100)
-    function foo1(β)
-        M = model_tensor(Ising(Ni, Nj), β; atype = atype)
+    function foo1(M)
         return norm(norm(M))
     end
     @test isapprox(Zygote.gradient(foo1, 0.4)[1], num_grad(foo1, 0.4), atol=1e-8)
@@ -57,310 +49,252 @@ end
     @test isapprox(Zygote.gradient(foo2, 1)[1], num_grad(foo2, 1), atol=1e-8)
 end
 
-@testset "QR factorization with $atype{$dtype}" for atype in [Array, CuArray], dtype in [Float64]
-    M = atype(rand(10,10))
-    function foo5(x)
-        A = M .* x
-        Q, R = qrpos(A)
+@testset "QR factorization with $atype{$dtype}" for atype in [Array, CuArray], dtype in [Float64, ComplexF64]
+    Random.seed!(100)
+    M = atype(rand(dtype, 3, 3))
+    function foo(M)
+        Q, R = qrpos(M)
         return norm(Q) + norm(R)
     end
-    @test isapprox(Zygote.gradient(foo5, 1)[1], num_grad(foo5, 1), atol = 1e-5)
+    @test norm(Zygote.gradient(foo, M)[1] - num_grad(foo, M)) ≈ 0 atol = 1e-8
 end
 
-@testset "LQ factorization with $atype{$dtype}" for atype in [Array, CuArray], dtype in [Float64]
-    M = atype(rand(10,10))
-    function foo6(x)
-        A = M .*x
-        L, Q = lqpos(A)
-        return norm(L) + norm(Q)
-    end
-    @test isapprox(Zygote.gradient(foo6, 1)[1], num_grad(foo6, 1), atol = 1e-5)
-end
-
-@testset "loop_einsum mistake with $atype" for atype in [Array, CuArray]
+@testset "LQ factorization with $atype{$dtype}" for atype in [Array, CuArray], dtype in [Float64, ComplexF64]
     Random.seed!(100)
-    D = 10
-    A = atype(rand(D,D,D))
-    B = atype(rand(D,D))
+    M = atype(rand(dtype, 3, 3))
+    function foo(M)
+        L, Q = lqpos(M)
+        return  norm(Q) + norm(L)
+    end
+    @test norm(Zygote.gradient(foo, M)[1] - num_grad(foo, M)) ≈ 0 atol = 1e-8
+end
+
+@testset "loop_einsum mistake with  $atype{$dtype}" for atype in [Array, CuArray], dtype in [Float64, ComplexF64]
+    Random.seed!(100)
+    D = 5
+    A = atype(rand(dtype, D,D,D))
+    B = atype(rand(dtype, D,D))
     function foo(x)
         C = A * x
         D = B * x
         E = ein"abc,abc -> "(C,C)
         F = ein"ab,ab -> "(D,D)
-        return Array(E)[]/Array(F)[]
+        return norm(Array(E)[]/Array(F)[])
     end 
-    @time @test Zygote.gradient(foo, 1)[1] ≈ num_grad(foo, 1) atol = 1e-8
+    @test Zygote.gradient(foo, 1)[1] ≈ num_grad(foo, 1) atol = 1e-8
 end
 
-@testset "$(Ni)x$(Nj) leftenv and rightenv with $atype{$dtype}" for atype in [Array], dtype in [Float64], Ni = [2], Nj = [2]
-    Random.seed!(50)
+@testset "$(Ni)x$(Nj) leftenv and rightenv with $atype{$dtype}" for atype in [Array, CuArray], dtype in [Float64, ComplexF64], Ni = [2], Nj = [2]
+    Random.seed!(100)
     D, d = 3, 2
     A = Array{atype{dtype,3},2}(undef, Ni, Nj)
-    S = Array{atype{dtype,6},2}(undef, Ni, Nj)
+    S = Array{atype{ComplexF64,6},2}(undef, Ni, Nj)
+    M = Array{atype{ComplexF64,4},2}(undef, Ni, Nj)
     for j in 1:Nj, i in 1:Ni
         A[i,j] = atype(rand(dtype, D, d, D))
-        S[i,j] = atype(rand(dtype, D, d, D, D, d, D))
+        S[i,j] = atype(rand(ComplexF64, D, d, D, D, d, D))
+        M[i,j] = atype(rand(ComplexF64, d, d, d, d))
     end
 
     ALu, = leftorth(A) 
-    ALd, = leftorth(A) 
+    ALd, = leftorth(A)
     _, ARu, = rightorth(A)
     _, ARd, = rightorth(A)
 
-    function foo3(β)
-        M = model_tensor(Ising(Ni, Nj), β; atype = atype)
+    function foo1(M)
         _,FL = leftenv(ALu, ALd, M)
         s = 0
         for j in 1:Nj, i in 1:Ni
-            A = ein"(γcη,ηcγαaβ),βaα -> "(FL[i,j], S[i,j], FL[i,j])
-            B = ein"γcη,ηcγ -> "(FL[i,j], FL[i,j])
-            s += Array(A)[]/Array(B)[]
+            A = ein"(abc,abcdef),def -> "(FL[i,j], S[i,j], FL[i,j])
+            B = ein"abc,abc -> "(FL[i,j], FL[i,j])
+            s += norm(Array(A)[]/Array(B)[])
         end
         return s
     end 
-    @test isapprox(Zygote.gradient(foo3, 1)[1], num_grad(foo3, 1), atol=1e-8)
+    @test Zygote.gradient(foo1, M)[1] ≈ num_grad(foo1, M) atol = 1e-7
 
-    function foo4(β)
-        M = model_tensor(Ising(Ni, Nj), β; atype = atype)
+    function foo2(M)
         _,FR = rightenv(ARu, ARd, M)
         s = 0
         for j in 1:Nj, i in 1:Ni
-            A = ein"(γcη,ηcγαaβ),βaα -> "(FR[i,j], S[i,j], FR[i,j])
-            B = ein"γcη,ηcγ -> "(FR[i,j], FR[i,j])
-            s += Array(A)[]/Array(B)[]
+            A = ein"(abc,abcdef),def -> "(FR[i,j], S[i,j], FR[i,j])
+            B = ein"abc,abc -> "(FR[i,j], FR[i,j])
+            s += norm(Array(A)[]/Array(B)[])
         end
         return s
     end 
-    @test isapprox(Zygote.gradient(foo4, 1)[1], num_grad(foo4, 1), atol=1e-8)
+    @test Zygote.gradient(foo2, M)[1] ≈ num_grad(foo2, M) atol = 1e-7
 end
 
-@testset "$(Ni)x$(Nj) ACenv and Cenv with $atype{$dtype}" for atype in [Array], dtype in [Float64], Ni = [2], Nj = [2]
-    Random.seed!(50)
+@testset "$(Ni)x$(Nj) ACenv and Cenv with $atype{$dtype}" for atype in [Array, CuArray], dtype in [Float64, ComplexF64], Ni = [2], Nj = [2]
+    Random.seed!(100)
     D, d = 3, 2
     A = Array{atype{dtype,3},2}(undef, Ni, Nj)
-    S1 = Array{atype{dtype,6},2}(undef, Ni, Nj)
-    S2 = Array{atype{dtype,4},2}(undef, Ni, Nj)
+    S1 = Array{atype{ComplexF64,6},2}(undef, Ni, Nj)
+    S2 = Array{atype{ComplexF64,4},2}(undef, Ni, Nj)
+    M = Array{atype{ComplexF64,4},2}(undef, Ni, Nj)
     for j in 1:Nj, i in 1:Ni
         A[i,j] = atype(rand(dtype, D, d, D))
-        S1[i,j] = atype(rand(dtype, D, d, D, D, d, D))
-        S2[i,j] = atype(rand(dtype, D, D, D, D))
+        S1[i,j] = atype(rand(ComplexF64, D, d, D, D, d, D))
+        S2[i,j] = atype(rand(ComplexF64, D, D, D, D))
+        M[i,j] = atype(rand(ComplexF64, d, d, d, d))
     end
 
     AL, L, _ = leftorth(A) 
     R, AR, _ = rightorth(A)
-    M = model_tensor(Ising(Ni, Nj), 1.0; atype = atype)
     _, FL = leftenv(AL, AL, M)
     _, FR = rightenv(AR, AR, M)
 
     C = LRtoC(L, R)
     AC = ALCtoAC(AL, C)
-
-    function foo1(β)
-        M = model_tensor(Ising(Ni, Nj), β; atype = atype)
+    function foo1(M)
         _, AC = ACenv(AC, FL, M, FR)
         s = 0
         for j in 1:Nj, i in 1:Ni
-            A = ein"(γcη,ηcγαaβ),βaα -> "(AC[i,j], S1[i,j], AC[i,j])
-            B = ein"γcη,γcη -> "(AC[i,j], AC[i,j])
-            s += Array(A)[]/Array(B)[]
+            A = ein"(abc,abcdef),def -> "(AC[i,j], S1[i,j], AC[i,j])
+            B = ein"abc,abc -> "(AC[i,j], AC[i,j])
+            s += norm(Array(A)[]/Array(B)[])
         end
         return s
     end
-    @test isapprox(Zygote.gradient(foo1, 1)[1], num_grad(foo1, 1), atol=1e-8)
+    @test Zygote.gradient(foo1, M)[1] ≈ num_grad(foo1, M) atol = 1e-8
 
-    function foo2(β)
-        M = model_tensor(Ising(Ni, Nj), β; atype = atype)
+    function foo2(M)
         _, FL = leftenv(AL, AL, M)
         _, FR = rightenv(AR, AR, M)
         _, C = Cenv(C, FL, FR)
         s = 0
         for j in 1:Nj, i in 1:Ni
-            A = ein"(γη,ηγαβ),βα -> "(C[i,j], S2[i,j], C[i,j])
-            B = ein"γη,γη -> "(C[i,j], C[i,j])
-            s += Array(A)[]/Array(B)[]
+            A = ein"(ab,abcd),cd -> "(C[i,j], S2[i,j], C[i,j])
+            B = ein"ab,ab -> "(C[i,j], C[i,j])
+            s += norm(Array(A)[]/Array(B)[])
         end
         return s
     end
-    @test isapprox(Zygote.gradient(foo2, 1)[1], num_grad(foo2, 1), atol=1e-8)
+    @test Zygote.gradient(foo2, M)[1] ≈ num_grad(foo2, M) atol = 1e-8
 end
 
-@testset "$(Ni)x$(Nj) ACenv and Cenv with $atype{$dtype}" for atype in [Array], dtype in [Float64], Ni = [2], Nj = [2]
+@testset "$(Ni)x$(Nj) ACCtoALAR with $atype{$dtype}" for atype in [Array, CuArray], dtype in [Float64, ComplexF64], Ni = [2], Nj = [2]
     Random.seed!(100)
-    D, d = 10, 2
-    A = Array{atype{dtype,3},2}(undef, Ni, Nj)
-    S1 = Array{atype{dtype,6},2}(undef, Ni, Nj)
-    S2 = Array{atype{dtype,4},2}(undef, Ni, Nj)
-    for j in 1:Nj, i in 1:Ni
-        A[i,j] = atype(rand(dtype, D, d, D))
-        S1[i,j] = atype(rand(dtype, D, d, D, D, d, D))
-        S2[i,j] = atype(rand(dtype, D, D, D, D))
-    end
-
-    AL, L, _ = leftorth(A) 
-    R, AR, _ = rightorth(A)
-    M = model_tensor(Ising(Ni, Nj), 1.0; atype = atype)
-    _, FL = leftenv(AL, AL, M)
-    _, FR = rightenv(AR, AR, M)
-
-    Cp = LRtoC(L, R)
-    ACp = ALCtoAC(AL, Cp)
-
-    using BCVUMPS:ktoij,ACmap,Cmap,ACCtoAL,ACCtoAR,itoir
-    function foo1(β)
-        M = model_tensor(Ising(Ni, Nj), β; atype = atype)
-        _, AC = ACenv(ACp, FL, M, FR)
-        _, C = Cenv(Cp, FL, FR)
-        
-        # ACp = reshape([ACmap(AC[k], FL[:,ktoij(k,Ni,Nj)[2]], FR[:,ktoij(k,Ni,Nj)[2]], M[:,ktoij(k,Ni,Nj)[2]], ktoij(k,Ni,Nj)[1]) for k=1:Ni*Nj],(Ni,Nj))
-        # Cp = reshape([Cmap(C[k], FL[:,ktoij(k,Ni,Nj)[2] + 1 - (ktoij(k,Ni,Nj)[2]==Nj) * Nj], FR[:,ktoij(k,Ni,Nj)[2]], ktoij(k,Ni,Nj)[1]) for k=1:Ni*Nj],(Ni,Nj))
-        AL, AR = ACCtoALAR(AC, C) # mistake
-        # AL = reshape([ACCtoAL(AC[i],C[i]) for i=1:Ni*Nj],Ni,Nj)
-        # AR = reshape([ACCtoAR(AC[i],C[itoir(i,Ni,Nj)]) for i=1:Ni*Nj],Ni,Nj)
-    
-        s = 0
-        for j in 1:Nj, i in 1:Ni
-            A = ein"(γcη,ηcγαaβ),βaα -> "(AC[i,j], S1[i,j], AC[i,j])
-            B = ein"γcη,γcη -> "(AC[i,j], AC[i,j])
-            s += Array(A)[]/Array(B)[]
-            A = ein"(γcη,ηcγαaβ),βaα -> "(AL[i,j], S1[i,j], AL[i,j])
-            B = ein"γcη,γcη -> "(AL[i,j], AL[i,j])
-            s += Array(A)[]/Array(B)[]
-            A = ein"(γcη,ηcγαaβ),βaα -> "(AR[i,j], S1[i,j], AR[i,j])
-            B = ein"γcη,γcη -> "(AR[i,j], AR[i,j])
-            s += Array(A)[]/Array(B)[]
-            A = ein"(γη,ηγαβ),βα -> "(C[i,j], S2[i,j], C[i,j])
-            B = ein"γη,γη -> "(C[i,j], C[i,j])
-            s += Array(A)[]/Array(B)[]
-        end
-        return s
-    end
-    @test isapprox(Zygote.gradient(foo1, 0.5)[1], num_grad(foo1, 0.5), atol=1e-8)
-end
-
-@testset "$(Ni)x$(Nj) ACCtoALAR with $atype{$dtype}" for atype in [Array], dtype in [Float64], Ni = [2], Nj = [2]
-    Random.seed!(100)
-    D, d = 5, 2
-    A = Array{atype{dtype,3},2}(undef, Ni, Nj)
-    S1 = Array{atype{dtype,6},2}(undef, Ni, Nj)
-    S2 = Array{atype{dtype,4},2}(undef, Ni, Nj)
-    for j in 1:Nj, i in 1:Ni
-        A[i,j] = atype(rand(dtype, D, d, D))
-        S1[i,j] = atype(rand(dtype, D, d, D, D, d, D))
-        S2[i,j] = atype(rand(dtype, D, D, D, D))
-    end
-
-    AL, L, _ = leftorth(A) 
-    R, AR, _ = rightorth(A)
-    M = model_tensor(Ising(Ni, Nj), 1.0; atype = atype)
-    _, FL = leftenv(AL, AL, M)
-    _, FR = rightenv(AR, AR, M)
-
-    C = LRtoC(L, R)
-    AC = ALCtoAC(AL, C)
-
-    function foo1(β)
-        M = model_tensor(Ising(Ni, Nj), β; atype = atype)
-        _, AC = ACenv(AC, FL, M, FR)
-        _, C = Cenv(C, FL, FR)
-        AL, AR = ACCtoALAR(AC, C)
-        s = 0
-        for j in 1:Nj, i in 1:Ni
-            A = ein"(γcη,ηcγαaβ),βaα -> "(AC[i,j], S1[i,j], AC[i,j])
-            B = ein"γcη,γcη -> "(AC[i,j], AC[i,j])
-            s += Array(A)[]/Array(B)[]
-            A = ein"(γcη,ηcγαaβ),βaα -> "(AL[i,j], S1[i,j], AL[i,j])
-            B = ein"γcη,γcη -> "(AL[i,j], AL[i,j])
-            s += Array(A)[]/Array(B)[]
-            A = ein"(γcη,ηcγαaβ),βaα -> "(AR[i,j], S1[i,j], AR[i,j])
-            B = ein"γcη,γcη -> "(AR[i,j], AR[i,j])
-            s += Array(A)[]/Array(B)[]
-            A = ein"(γη,ηγαβ),βα -> "(C[i,j], S2[i,j], C[i,j])
-            B = ein"γη,γη -> "(C[i,j], C[i,j])
-            s += Array(A)[]/Array(B)[]
-        end
-        return s
-    end
-    @test isapprox(Zygote.gradient(foo1, 1)[1], num_grad(foo1, 1), atol=1e-4)
-end
-
-@testset "observable leftenv and rightenv with $atype{$dtype}" for atype in [Array], dtype in [Float64], Ni = [2], Nj = [2]
-    Random.seed!(50)
     D, d = 3, 2
     A = Array{atype{dtype,3},2}(undef, Ni, Nj)
-    S = Array{atype{dtype,6},2}(undef, Ni, Nj)
+    S1 = Array{atype{ComplexF64,6},2}(undef, Ni, Nj)
+    S2 = Array{atype{ComplexF64,4},2}(undef, Ni, Nj)
+    M = Array{atype{ComplexF64,4},2}(undef, Ni, Nj)
     for j in 1:Nj, i in 1:Ni
         A[i,j] = atype(rand(dtype, D, d, D))
-        S[i,j] = atype(rand(dtype, D, d, D, D, d, D))
+        S1[i,j] = atype(rand(ComplexF64, D, d, D, D, d, D))
+        S2[i,j] = atype(rand(ComplexF64, D, D, D, D))
+        M[i,j] = atype(rand(ComplexF64, d, d, d, d))
+    end
+
+    AL, L, _ = leftorth(A) 
+    R, AR, _ = rightorth(A)
+    _, FL = leftenv(AL, AL, M)
+    _, FR = rightenv(AR, AR, M)
+
+    Co = LRtoC(L, R)
+    ACo = ALCtoAC(AL, Co)
+    _, Co = Cenv(Co, FL, FR)
+    function foo1(M)
+        _, AC = ACenv(ACo, FL, M, FR)
+        AL, AR = ACCtoALAR(AC, Co) 
+        s = 0
+        for j in 1:Nj, i in 1:Ni
+            A = ein"(abc,abcdef),def -> "(AL[i,j], S1[i,j], AL[i,j])
+            B = ein"abc,abc -> "(AL[i,j], AL[i,j])
+            s += norm(Array(A)[]/Array(B)[])
+            A = ein"(abc,abcdef),def -> "(AR[i,j], S1[i,j], AR[i,j])
+            B = ein"abc,abc -> "(AR[i,j], AR[i,j])
+            s += norm(Array(A)[]/Array(B)[])
+            A = ein"(abc,abcdef),def -> "(AC[i,j], S1[i,j], AC[i,j])
+            B = ein"abc,abc -> "(AC[i,j], AC[i,j])
+            s += norm(Array(A)[]/Array(B)[])
+        end
+        return s
+    end
+    @test Zygote.gradient(foo1, M)[1] ≈ num_grad(foo1, M) atol = 1e-2
+end
+
+@testset "observable leftenv and rightenv with $atype{$dtype}" for atype in [Array, CuArray], dtype in [Float64, ComplexF64], Ni = [2], Nj = [2]
+    Random.seed!(100)
+    D, d = 3, 2
+    A = Array{atype{dtype,3},2}(undef, Ni, Nj)
+    S = Array{atype{ComplexF64,6},2}(undef, Ni, Nj)
+    M = Array{atype{ComplexF64,4},2}(undef, Ni, Nj)
+    for j in 1:Nj, i in 1:Ni
+        A[i,j] = atype(rand(dtype, D, d, D))
+        S[i,j] = atype(rand(ComplexF64, D, d, D, D, d, D))
+        M[i,j] = atype(rand(ComplexF64, d, d, d, d))
+    end
+
+    ALu, = leftorth(A) 
+    ALd, = leftorth(A)
+    _, ARu, = rightorth(A)
+    _, ARd, = rightorth(A)
+
+    function foo1(M)
+        _,FL = obs_FL(ALu, ALd, M)
+        s = 0
+        for j in 1:Nj, i in 1:Ni
+            A = ein"(abc,abcdef),def -> "(FL[i,j], S[i,j], FL[i,j])
+            B = ein"abc,abc -> "(FL[i,j], FL[i,j])
+            s += norm(Array(A)[]/Array(B)[])
+        end
+        return s
+    end 
+    @test Zygote.gradient(foo1, M)[1] ≈ num_grad(foo1, M) atol = 1e-7
+
+    function foo2(M)
+        _,FR = obs_FR(ARu, ARd, M)
+        s = 0
+        for j in 1:Nj, i in 1:Ni
+            A = ein"(abc,abcdef),def -> "(FR[i,j], S[i,j], FR[i,j])
+            B = ein"abc,abc -> "(FR[i,j], FR[i,j])
+            s += norm(Array(A)[]/Array(B)[])
+        end
+        return s
+    end 
+    @test Zygote.gradient(foo2, M)[1] ≈ num_grad(foo2, M) atol = 1e-7
+end
+
+@testset "bigleftenv and bigrightenv with $atype{$dtype}" for atype in [Array, CuArray], dtype in [Float64, ComplexF64], Ni = [2], Nj = [2]
+    Random.seed!(100)
+    D, d = 3, 2
+    A = Array{atype{dtype,3},2}(undef, Ni, Nj)
+    S = Array{atype{ComplexF64,8},2}(undef, Ni, Nj)
+    M = Array{atype{ComplexF64,4},2}(undef, Ni, Nj)
+    for j in 1:Nj, i in 1:Ni
+        A[i,j] = atype(rand(dtype, D, d, D))
+        S[i,j] = atype(rand(ComplexF64, D, d, d, D, D, d, d, D))
+        M[i,j] = atype(rand(ComplexF64, d, d, d, d))
     end
 
     ALu, = leftorth(A) 
     ALd, = leftorth(A) 
     _, ARu, = rightorth(A)
     _, ARd, = rightorth(A)
-
-    function foo3(β)
-        M = model_tensor(Ising(Ni, Nj), β; atype = atype)
-        _,FL = obs_FL(ALu, ALd, M)
-        s = 0
-        for j in 1:Nj, i in 1:Ni
-            A = ein"(γcη,ηcγαaβ),βaα -> "(FL[i,j], S[i,j], FL[i,j])
-            B = ein"γcη,ηcγ -> "(FL[i,j], FL[i,j])
-            s += Array(A)[]/Array(B)[]
-        end
-        return s
-    end 
-    @test isapprox(Zygote.gradient(foo3, 1)[1], num_grad(foo3, 1), atol=1e-8)
-
-    function foo4(β)
-        M = model_tensor(Ising(Ni, Nj), β; atype = atype)
-        _,FR = obs_FR(ARu, ARd, M)
-        s = 0
-        for j in 1:Nj, i in 1:Ni
-            A = ein"(γcη,ηcγαaβ),βaα -> "(FR[i,j], S[i,j], FR[i,j])
-            B = ein"γcη,ηcγ -> "(FR[i,j], FR[i,j])
-            s += Array(A)[]/Array(B)[]
-        end
-        return s
-    end 
-    @test isapprox(Zygote.gradient(foo4, 1)[1], num_grad(foo4, 1), atol=1e-8)
-end
-
-@testset "bigleftenv and bigrightenv with $atype{$dtype}" for atype in [Array], dtype in [Float64], Ni = [2], Nj = [2]
-    Random.seed!(100)
-    D, d = 3, 2
-    A = Array{atype{dtype,3},2}(undef, Ni, Nj)
-    S = Array{atype{dtype,8},2}(undef, Ni, Nj)
-    for j in 1:Nj, i in 1:Ni
-        A[i,j] = atype(rand(dtype, D, d, D))
-        S[i,j] = atype(rand(dtype, D,d,d,D,D,d,d,D))
-    end
-
-    AL, = leftorth(A) 
-    _, AR, = rightorth(A)
-
-    function foo3(β)
-        M = model_tensor(Ising(Ni, Nj), β; atype = atype)
-        _, FL4 = bigleftenv(AL, AR, M)
+    function foo1(M)
+        _, FL4 = bigleftenv(ALu, ALd, M)
         s = 0
         for j in 1:Nj, i in 1:Ni
             A = ein"(abcd,abcdefgh),efgh -> "(FL4[i,j], S[i,j], FL4[i,j])
             B = ein"abcd,abcd -> "(FL4[i,j], FL4[i,j])
-            s += Array(A)[]/Array(B)[]
+            s += norm(Array(A)[]/Array(B)[])
         end
         return s
     end 
-    @test isapprox(Zygote.gradient(foo3, 1)[1], num_grad(foo3, 1), atol=1e-8)
+    @test Zygote.gradient(foo1, M)[1] ≈ num_grad(foo1, M) atol = 1e-7
 
-    function foo4(β)
-        M = model_tensor(Ising(Ni, Nj), β; atype = atype)
-        _, FR4 = bigrightenv(AR, AL, M)
+    function foo2(M)
+        _, FR4 = bigrightenv(ARu, ARd, M)
         s = 0
         for j in 1:Nj, i in 1:Ni
             A = ein"(abcd,abcdefgh),efgh -> "(FR4[i,j], S[i,j], FR4[i,j])
             B = ein"abcd,abcd -> "(FR4[i,j], FR4[i,j])
-            s += Array(A)[]/Array(B)[]
+            s += norm(Array(A)[]/Array(B)[])
         end
         return s
     end 
-    @test isapprox(Zygote.gradient(foo4, 1)[1], num_grad(foo4, 1), atol=1e-8)
+    @test Zygote.gradient(foo2, M)[1] ≈ num_grad(foo2, M) atol = 1e-7
 end

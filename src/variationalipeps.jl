@@ -1,4 +1,4 @@
-using BCVUMPS: bigleftenv, bigrightenv, ALCtoAC, obs2x2FL, obs2x2FR
+using BCVUMPS: bigleftenv, bigrightenv, ALCtoAC
 using LinearAlgebra: I, norm
 using LineSearches
 using OMEinsum: get_size_dict, optimize_greedy,  MinSpaceDiff
