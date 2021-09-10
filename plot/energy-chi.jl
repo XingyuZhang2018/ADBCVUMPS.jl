@@ -13,8 +13,8 @@ function new_energy(bulk, new_key)
     energy(h, buildbcipeps(atype(bulk),2,2), oc, new_key; verbose = true, savefile = true)
 end
 
-model = Kitaev_Heisenberg(88.0)
-folder = "./../../../../data1/xyzhang/ADBCVUMPS/Kitaev_Heisenberg/"
+model = K_J_Γ_Γ′(-1.0, -0.1, 0.3, -0.02)
+folder = "./../../../../data1/xyzhang/ADBCVUMPS/K_J_Γ_Γ′/"
 atype, D, χ, tol, maxiter, miniter = CuArray, 4, 50, 1e-10, 10, 2
 
 bulk, _ = init_ipeps(model; folder = folder, atype = atype, D=D, χ=χ, tol=tol, maxiter=maxiter, miniter=miniter)
@@ -28,10 +28,11 @@ for χ in x
     yenergy = [yenergy; ener]
     # ymag = [ymag; mag]
 end
-yenergy
+yenergy /= 2
 energyplot = plot()
 # magplot = plot()
-plot!(energyplot, x, yenergy, title = "energy", label = "energy",legend = :bottomright, xlabel = "χ", ylabel = "E", lw = 3)
+x
+plot!(energyplot, x, real(yenergy), title = "energy", label = "energy",legend = :bottomright, xlabel = "χ", ylabel = "E", lw = 3)
 # plot!(magplot, x, ymag, title = "magnetization", label = "magnetization",legend = :bottomright, xlabel = "χ", ylabel = "M", lw = 3)
 # obs = plot(energyplot, magplot, layout = (2,1), xlabel="χ", size = [800, 1000])
-# savefig(energyplot,"./plot/obs-D$(D)_χ$(χ).svg")
+# savefig(energyplot,"./plot/obs-$(model)_D$(D)_χ$(χ).svg")

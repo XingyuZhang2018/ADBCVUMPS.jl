@@ -78,7 +78,7 @@ function hamiltonian(model::Heisenberg)
         model.Jx * ein"ij,kl -> ijkl"(σx, σx) -
         model.Jy * ein"ij,kl -> ijkl"(σy, σy)
     # h = ein"ijcd,kc,ld -> ijkl"(h,σx,σx')
-    h ./ 2
+    h / 8
 end
 
 @doc raw"
@@ -103,7 +103,7 @@ function hamiltonian(model::Kitaev)
     hx = model.Jx * ein"ij,kl -> ijkl"(σx, σx)
     hy = model.Jy * ein"ij,kl -> ijkl"(σy, σy)
     hz = model.Jz * ein"ij,kl -> ijkl"(σz, σz)
-    hx / 2, hy / 2, hz / 2
+    hx / 8, hy / 8, hz / 8
 end
 
 @doc raw"
@@ -128,7 +128,7 @@ function hamiltonian(model::Kitaev_Heisenberg)
     hx = Heisenberg + sin(model.ϕ / 180 * pi) * ein"ij,kl -> ijkl"(σx, σx)
     hy = Heisenberg + sin(model.ϕ / 180 * pi) * ein"ij,kl -> ijkl"(σy, σy)
     hz = Heisenberg + sin(model.ϕ / 180 * pi) * ein"ij,kl -> ijkl"(σz, σz)
-    hx / 2, hy / 2, hz / 2
+    hx / 8, hy / 8, hz / 8
 end
 
 @doc raw"
@@ -155,5 +155,5 @@ function hamiltonian(model::K_J_Γ_Γ′)
     hx = Heisenberg + model.K * ein"ij,kl -> ijkl"(σx, σx) + model.Γ * (ein"ij,kl -> ijkl"(σy, σz) + ein"ij,kl -> ijkl"(σz, σy)) + model.Γ′ * (ein"ij,kl -> ijkl"(σx, σy) + ein"ij,kl -> ijkl"(σy, σx) + ein"ij,kl -> ijkl"(σz, σx) + ein"ij,kl -> ijkl"(σx, σz))
     hy = Heisenberg + model.K * ein"ij,kl -> ijkl"(σy, σy) + model.Γ * (ein"ij,kl -> ijkl"(σx, σz) + ein"ij,kl -> ijkl"(σz, σx)) + model.Γ′ * (ein"ij,kl -> ijkl"(σy, σx) + ein"ij,kl -> ijkl"(σx, σy) + ein"ij,kl -> ijkl"(σz, σy) + ein"ij,kl -> ijkl"(σy, σz))
     hz = Heisenberg + model.K * ein"ij,kl -> ijkl"(σz, σz) + model.Γ * (ein"ij,kl -> ijkl"(σx, σy) + ein"ij,kl -> ijkl"(σy, σx)) + model.Γ′ * (ein"ij,kl -> ijkl"(σz, σx) + ein"ij,kl -> ijkl"(σx, σz) + ein"ij,kl -> ijkl"(σy, σz) + ein"ij,kl -> ijkl"(σz, σy))
-    hx / 2, hy / 2, hz / 2
+    hx / 8, hy / 8, hz / 8
 end

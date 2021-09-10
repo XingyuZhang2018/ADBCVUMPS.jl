@@ -12,7 +12,7 @@ return the energy of the `bcipeps` 2-site hamiltonian `h` and calculated via a
 BCVUMPS with parameters `χ`, `tol` and `maxiter`.
 """
 function energy(h, bulk, oc, key; verbose = true, savefile = true)
-    folder, model, atype, D, χ, tol, maxiter, miniter = key
+    folder, model, field, atype, D, χ, tol, maxiter, miniter = key
     # bcipeps = indexperm_symmetrize(bcipeps)  # NOTE: this is not good
     Ni,Nj = size(bulk)
     ap = [ein"abcdx,ijkly -> aibjckdlxy"(bulk[i], conj(bulk[i])) for i = 1:Ni*Nj]
@@ -21,7 +21,7 @@ function energy(h, bulk, oc, key; verbose = true, savefile = true)
     a = [ein"ijklaa -> ijkl"(ap[i]) for i = 1:Ni*Nj]
     a = reshape(a, Ni, Nj)
 
-    env = obs_bcenv(model, a; atype = atype, χ = χ, tol = tol, maxiter = maxiter, miniter = miniter, verbose = verbose, savefile = savefile, folder = folder)
+    env = obs_bcenv(a; χ = χ, tol = tol, maxiter = maxiter, miniter = miniter, verbose = verbose, savefile = savefile, folder = folder*"$(model)_field$(field)_$(atype)/")
     e = expectationvalue(h, ap, env, oc, key)
     return e
 end
@@ -32,13 +32,13 @@ end
 optimise the follow two einsum contractions for the given `D` and `χ` which are used to calculate the energy of the 2-site hamiltonian:
 
 ```
-                                          a ────┬──c─ d
-a ────┬──c──d──┬──── f                    │     b     │
-│     b        e     │                    ├─ e ─┼─ f ─┤
-├─ g ─┼─   h  ─┼─ i ─┤                    │     g     │
-│     k        n     │                    ├─ h ─┼─ i ─┤
-j ────┴──l──m──┴──── o                    │     k     │
-                                          j ────┴──l─ m 
+                                          a ────┬──c─ d     a ────┬──c─ d          
+a ────┬──c──d──┬──── f                    │     b     │     │     b     │  
+│     b        e     │                    ├─ e ─┼─ f ─┤     ├─ e ─┼─ f ─┤  
+├─ g ─┼─   h  ─┼─ i ─┤                    │     g     │     g     h     i 
+│     k        n     │                    ├─ h ─┼─ i ─┤     ├─ j ─┼─ k ─┤ 
+j ────┴──l──m──┴──── o                    │     k     │     │     m     │ 
+                                          j ────┴──l─ m     l ────┴──n─ o 
 ```
 where the central two block are six order tensor have extra bond `pq` and `rs`
 """
@@ -47,6 +47,8 @@ function optcont(D::Int, χ::Int)
     oc1 = optimize_greedy(ein"agj,abc,gkhbpq,jkl,cd,lm,fio,def,hniers,mno -> pqrs", sd; method=MinSpaceDiff())
     sd = Dict('a' => χ, 'b' => D^2, 'c' => χ, 'd' => χ, 'e' => D^2, 'f' => D^2, 'g' => D^2, 'h' => D^2, 'i' => D^2, 'j' => χ, 'k' => D^2, 'l' => χ, 'm' => χ, 'p' => 2, 'q' => 2, 'r' => 2, 's' => 2)
     oc2 = optimize_greedy(ein"aehj,abc,cd,egfbpq,hkigrs,jkl,lm,dfim -> pqrs", sd; method=MinSpaceDiff())
+    # sd = Dict('a' => χ, 'b' => D^2, 'c' => χ, 'd' => χ, 'e' => D^2, 'f' => D^2, 'g' => χ, 'h' => D^2, 'i' => χ, 'j' => D^2, 'k' => D^2, 'l' => χ, 'm' => D^2, 'n' => χ, 'o' => χ, 'r' => 2, 's' => 2, 'p' => 2, 'q' => 2)
+    # oc2 = optimize_greedy(ein"abc,cd,aeg,ehfbpq,dfi,gjl,jmkhrs,iko,lmn,no -> pqrs", sd; method=MinSpaceDiff())
     oc1, oc2
 end
 
@@ -59,7 +61,7 @@ a `SquareBCVUMPSRuntime` `env`.
 """
 function expectationvalue(h, ap, env, oc, key)
     M, ALu, Cu, ARu, ALd, Cd, ARd, FL, FR, FLu, FRu = env
-    folder, model, atype, D, χ, tol, maxiter, miniter = key
+    folder, model, field, atype, D, χ, tol, maxiter, miniter = key
     oc1, oc2 = oc
     Ni,Nj = size(M)
     hx, hy, hz = h
@@ -76,11 +78,11 @@ function expectationvalue(h, ap, env, oc, key)
         lr = oc1(FL[i,j],ALu[i,j],ap[i,j],ALd[ir,j],Cu[i,j],Cd[ir,j],FR[i,jr],ARu[i,jr],ap[i,jr],ARd[ir,jr])
         e = ein"pqrs, pqrs -> "(lr,hij)
         n = ein"pprr -> "(lr)
-        println("── = $(Array(e)[]/Array(n)[])") 
+        println("── = $(Array(e)[]/Array(n)[])")
         etol += Array(e)[]/Array(n)[]
     end
     
-    chkp_file_bgobs = folder*"$(model)_$(atype)/bgobs_D$(D)_chi$(χ).jld2"
+    chkp_file_bgobs = folder*"$(model)_$(field)_$(atype)/bgobs_D$(D^2)_chi$(χ).jld2"
     if isfile(chkp_file_bgobs)   
         Zygote.@ignore begin
             println("←→ observable environment load from $(chkp_file_bgobs)")
@@ -103,9 +105,8 @@ function expectationvalue(h, ap, env, oc, key)
         if (i,j) in [(1,1),(2,2)]
             hij = hz
             ir = i + 1 - Ni * (i==Ni)
-            # irr = i + 2 - Ni * (i + 2 > Ni)
-            # lr2 = oc2(ALu[i,j],Cu[i,j],FLu[i,j],ap[i,j],FRu[i,j],FL[ir,j],ap[ir,j],FR[ir,j],ALd[i,j],Cd[i,j])
             lr2 = oc2(BgFL[i,j],ALu[i,j],Cu[i,j],ap[i,j],ap[ir,j],ALd[i,j],Cd[i,j],BgFR[i,j])
+            # lr2 = oc2(ALu[i,j],Cu[i,j],FLu[i,j],ap[i,j],FRu[i,j],FL[ir,j],ap[ir,j],FR[ir,j],ALd[i,j],Cd[i,j])
             e2 = ein"pqrs, pqrs -> "(lr2,hij)
             n2 = ein"pprr -> "(lr2)
             println("| = $(Array(e2)[]/Array(n2)[])") 
@@ -113,21 +114,20 @@ function expectationvalue(h, ap, env, oc, key)
         end
     end
 
-    # Zygote.@ignore begin
-    #     M = 0
-    #     for j = 1:Nj, i = 1:Ni
-    #         ir = Ni + 1 - i
-    #         lr3 = ein"(((((gea,abc),cd),ehfbpq),ghi),ij),dfj -> pq"(FL[i,j],ALu[i,j],Cu[i,j],ap[i,j],ALd[ir,j],Cd[ir,j],FR[i,j])
-    #         Mx = ein"pq, pq -> "(Array(lr3),σx)
-    #         My = ein"pq, pq -> "(Array(lr3),σy)
-    #         Mz = ein"pq, pq -> "(Array(lr3),σz)
-    #         n3 = ein"pp -> "(lr3)
-    #         M += (abs(Array(Mx)[]/Array(n3)[])+abs(Array(My)[]/Array(n3)[])+abs(Array(Mz)[]/Array(n3)[]))/4
-    #     end
-    #     println("M = $(M)") 
-    # end
-    println("e = $(etol/4)")
-    return etol/4
+    for j = 1:Nj, i = 1:Ni
+        ir = Ni + 1 - i
+        lr3 = ein"(((((aeg,abc),cd),ehfbpq),ghi),ij),dfj -> pq"(FL[i,j],ALu[i,j],Cu[i,j],ap[i,j],ALd[ir,j],Cd[ir,j],FR[i,j])
+        Mx = ein"pq, pq -> "(lr3,atype(σx/2))
+        My = ein"pq, pq -> "(lr3,atype(σy/2))
+        Mz = ein"pq, pq -> "(lr3,atype(σz/2))
+        n3 = Array(ein"pp -> "(lr3))[]
+        M = [Array(Mx)[]/n3, Array(My)[]/n3, Array(Mz)[]/n3]
+        @show M
+        etol += M' * field
+    end
+
+    println("e = $(etol)")
+    return etol
 end
 
 """
@@ -155,11 +155,11 @@ end
 Initial `bcipeps` and give `key` for use of later optimization. The key include `model`, `D`, `χ`, `tol` and `maxiter`. 
 The iPEPS is random initial if there isn't any calculation before, otherwise will be load from file `/data/model_D_chi_tol_maxiter.jld2`
 """
-function init_ipeps(model::HamiltonianModel; folder::String="./data/", atype = Array, D::Int, χ::Int, tol::Real, maxiter::Int, miniter::Int, verbose = true)
-    key = (folder, model, atype, D, χ, tol, maxiter, miniter)
-    folder *= "$(model)_$(atype)/"
+function init_ipeps(model::HamiltonianModel, field::Vector{Float64}; folder::String="./data/", atype = Array, D::Int, χ::Int, tol::Real, maxiter::Int, miniter::Int, verbose = true)
+    key = (folder, model, field, atype, D, χ, tol, maxiter, miniter)
+    folder *= "$(model)_field$(field)_$(atype)/"
     mkpath(folder)
-    chkp_file = folder*"$(model)_$(atype)_D$(D)_chi$(χ)_tol$(tol)_maxiter$(maxiter)_miniter$(miniter).jld2"
+    chkp_file = folder*"D$(D)_chi$(χ)_tol$(tol)_maxiter$(maxiter)_miniter$(miniter).jld2"
     if isfile(chkp_file)
         bulk = load(chkp_file)["bcipeps"]
         verbose && println("load BCiPEPS from $chkp_file")
@@ -181,7 +181,7 @@ providing `optimmethod`. Other options to optim can be passed with `optimargs`.
 The energy is calculated using vumps with key include parameters `χ`, `tol` and `maxiter`.
 """
 function optimiseipeps(bulk, key; f_tol = 1e-6, opiter = 100, verbose= false, optimmethod = LBFGS(m = 20)) where LT
-    _, model, atype, D, χ, _, _, _ = key
+    _, model, _, atype, D, χ, _, _, _ = key
     # h = atype(hamiltonian(model))
     hx, hy, hz = hamiltonian(model)
     h = (atype(hx),atype(hy),atype(hz))
@@ -220,12 +220,12 @@ function writelog(os::OptimizationState, key=nothing)
     printstyled(message; bold=true, color=:red)
     flush(stdout)
 
-    folder, model, atype, D, χ, tol, maxiter, miniter = key
+    folder, model, field, atype, D, χ, tol, maxiter, miniter = key
     if !(key === nothing)
-        logfile = open(folder*"$(model)_$(atype)/$(model)_$(atype)_D$(D)_chi$(χ)_tol$(tol)_maxiter$(maxiter)_miniter$(miniter).log", "a")
+        logfile = open(folder*"$(model)_$(field)_$(atype)/D$(D)_chi$(χ)_tol$(tol)_maxiter$(maxiter)_miniter$(miniter).log", "a")
         write(logfile, message)
         close(logfile)
-        save(folder*"$(model)_$(atype)/$(model)_$(atype)_D$(D)_chi$(χ)_tol$(tol)_maxiter$(maxiter)_miniter$(miniter).jld2", "bcipeps", os.metadata["x"])
+        save(folder*"$(model)_$(field)_$(atype)/D$(D)_chi$(χ)_tol$(tol)_maxiter$(maxiter)_miniter$(miniter).jld2", "bcipeps", os.metadata["x"])
     end
     return false
 end

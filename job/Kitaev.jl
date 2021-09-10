@@ -33,26 +33,6 @@ function parse_commandline()
             help = "tol error for optimise"
             arg_type = Float64
             default = 1e-10
-        "--K"
-            help = "K"
-            arg_type = Float64
-            required = true
-        "--J"
-            help = "J"
-            arg_type = Float64
-            required = true
-        "--Γ"
-            help = "Γ"
-            arg_type = Float64
-            required = true
-        "--Γ′"
-            help = "Γ′"
-            arg_type = Float64
-            required = true
-        "--field"
-            help = "external field"
-            arg_type = Float64
-            required = true
         "--D"
             help = "ipeps virtual bond dimension"
             arg_type = Int
@@ -73,11 +53,6 @@ end
 function main()
     parsed_args = parse_commandline()
     Random.seed!(100)
-    K = parsed_args["K"]
-    J = parsed_args["J"]
-    Γ = parsed_args["Γ"]
-    Γ′ = parsed_args["Γ′"]
-    field = parsed_args["field"]
     D = parsed_args["D"]
     χ = parsed_args["chi"]
     tol = parsed_args["tol"]
@@ -86,7 +61,7 @@ function main()
     opiter = parsed_args["opiter"]
     f_tol = parsed_args["f_tol"]
     folder = parsed_args["folder"]
-    bulk, key = init_ipeps(K_J_Γ_Γ′(K,J,Γ,Γ′), field*[1.0,1.0,1.0]; folder = folder, atype = CuArray, D=D, χ=χ, tol=tol, maxiter=maxiter, miniter=miniter)
+    bulk, key = init_ipeps(Kitaev(-1.0,-1.0,-1.0); folder = folder, atype = CuArray, D=D, χ=χ, tol=tol, maxiter=maxiter, miniter=miniter)
     optimiseipeps(bulk, key; f_tol = f_tol, opiter = opiter, verbose = true)
 end
 
