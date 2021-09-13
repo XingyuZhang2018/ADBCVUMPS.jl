@@ -21,7 +21,7 @@ function energy(h, bulk, oc, key; verbose = true, savefile = true)
     a = [ein"ijklaa -> ijkl"(ap[i]) for i = 1:Ni*Nj]
     a = reshape(a, Ni, Nj)
 
-    env = obs_bcenv(a; χ = χ, tol = tol, maxiter = maxiter, miniter = miniter, verbose = verbose, savefile = savefile, folder = folder*"$(model)_field$(field)_$(atype)/")
+    env = obs_bcenv(a; χ = χ, tol = tol, maxiter = maxiter, miniter = miniter, verbose = verbose, savefile = savefile, folder = folder)
     e = expectationvalue(h, ap, env, oc, key)
     return e
 end
@@ -82,7 +82,7 @@ function expectationvalue(h, ap, env, oc, key)
         etol += Array(e)[]/Array(n)[]
     end
     
-    chkp_file_bgobs = folder*"$(model)_$(field)_$(atype)/bgobs_D$(D^2)_chi$(χ).jld2"
+    chkp_file_bgobs = folder*"bgobs_D$(D^2)_chi$(χ).jld2"
     if isfile(chkp_file_bgobs)   
         Zygote.@ignore begin
             println("←→ observable environment load from $(chkp_file_bgobs)")
@@ -114,16 +114,18 @@ function expectationvalue(h, ap, env, oc, key)
         end
     end
 
-    for j = 1:Nj, i = 1:Ni
-        ir = Ni + 1 - i
-        lr3 = ein"(((((aeg,abc),cd),ehfbpq),ghi),ij),dfj -> pq"(FL[i,j],ALu[i,j],Cu[i,j],ap[i,j],ALd[ir,j],Cd[ir,j],FR[i,j])
-        Mx = ein"pq, pq -> "(lr3,atype(σx/2))
-        My = ein"pq, pq -> "(lr3,atype(σy/2))
-        Mz = ein"pq, pq -> "(lr3,atype(σz/2))
-        n3 = Array(ein"pp -> "(lr3))[]
-        M = [Array(Mx)[]/n3, Array(My)[]/n3, Array(Mz)[]/n3]
-        @show M
-        etol += M' * field
+    if field !== [0.0,0.0,0.0]
+        for j = 1:Nj, i = 1:Ni
+            ir = Ni + 1 - i
+            lr3 = ein"(((((aeg,abc),cd),ehfbpq),ghi),ij),dfj -> pq"(FL[i,j],ALu[i,j],Cu[i,j],ap[i,j],ALd[ir,j],Cd[ir,j],FR[i,j])
+            Mx = ein"pq, pq -> "(lr3,atype(σx/2))
+            My = ein"pq, pq -> "(lr3,atype(σy/2))
+            Mz = ein"pq, pq -> "(lr3,atype(σz/2))
+            n3 = Array(ein"pp -> "(lr3))[]
+            M = [Array(Mx)[]/n3, Array(My)[]/n3, Array(Mz)[]/n3]
+            @show M
+            etol += M' * field
+        end
     end
 
     println("e = $(etol)")
@@ -155,9 +157,8 @@ end
 Initial `bcipeps` and give `key` for use of later optimization. The key include `model`, `D`, `χ`, `tol` and `maxiter`. 
 The iPEPS is random initial if there isn't any calculation before, otherwise will be load from file `/data/model_D_chi_tol_maxiter.jld2`
 """
-function init_ipeps(model::HamiltonianModel, field::Vector{Float64}; folder::String="./data/", atype = Array, D::Int, χ::Int, tol::Real, maxiter::Int, miniter::Int, verbose = true)
-    key = (folder, model, field, atype, D, χ, tol, maxiter, miniter)
-    folder *= "$(model)_field$(field)_$(atype)/"
+function init_ipeps(model::HamiltonianModel, field::Vector{Float64} = [0.0,0.0,0.0];  folder::String="./data/", atype = Array, D::Int, χ::Int, tol::Real, maxiter::Int, miniter::Int, verbose = true)
+    field == [0.0,0.0,0.0] ? folder *= "$(model)_$(atype)/" : folder *= "$(model)_field$(field)_$(atype)/"
     mkpath(folder)
     chkp_file = folder*"D$(D)_chi$(χ)_tol$(tol)_maxiter$(maxiter)_miniter$(miniter).jld2"
     if isfile(chkp_file)
@@ -168,6 +169,7 @@ function init_ipeps(model::HamiltonianModel, field::Vector{Float64}; folder::Str
         verbose && println("random initial BCiPEPS $chkp_file")
     end
     bulk /= norm(bulk)
+    key = (folder, model, field, atype, D, χ, tol, maxiter, miniter)
     return bulk, key
 end
 
@@ -222,10 +224,10 @@ function writelog(os::OptimizationState, key=nothing)
 
     folder, model, field, atype, D, χ, tol, maxiter, miniter = key
     if !(key === nothing)
-        logfile = open(folder*"$(model)_$(field)_$(atype)/D$(D)_chi$(χ)_tol$(tol)_maxiter$(maxiter)_miniter$(miniter).log", "a")
+        logfile = open(folder*"D$(D)_chi$(χ)_tol$(tol)_maxiter$(maxiter)_miniter$(miniter).log", "a")
         write(logfile, message)
         close(logfile)
-        save(folder*"$(model)_$(field)_$(atype)/D$(D)_chi$(χ)_tol$(tol)_maxiter$(maxiter)_miniter$(miniter).jld2", "bcipeps", os.metadata["x"])
+        save(folder*"D$(D)_chi$(χ)_tol$(tol)_maxiter$(maxiter)_miniter$(miniter).jld2", "bcipeps", os.metadata["x"])
     end
     return false
 end
