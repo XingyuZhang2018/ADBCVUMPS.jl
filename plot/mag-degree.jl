@@ -37,34 +37,39 @@ function magnetisation(model, folder, D, χ, tol, maxiter, miniter)
         Mz = ein"pq, pq -> "(Array(lr3),σz/2)
         n3 = ein"pp -> "(lr3)
         M[i,j] = [Array(Mx)[]/Array(n3)[], Array(My)[]/Array(n3)[], Array(Mz)[]/Array(n3)[]]
-        println("M[$(i),$(j)] = $(real(M[i,j])) M = $(sqrt(real(M[i,j]' * M[i,j])))")
+        print("M[[$(i),$(j)]] = {")
+        for k = 1:3 
+            print(real(M[i,j][k])) 
+            k == 3 ? println("};") : print(",")
+        end
+        # println("M = $(sqrt(real(M[i,j]' * M[i,j])))")
     end
-    mag = ((norm(M[1,1])^2 + norm(M[2,1])^2 + norm(M[2,2])^2 + norm(M[1,2])^2))^0.5
-    ferro = (norm(M[1,1] + M[1,2] + M[2,2] + M[2,1])^2)^0.5
-    stripy = (norm(M[1,1] - M[1,2] - M[2,2] + M[2,1])^2)^0.5
-    zigzag = (norm(M[1,1] + M[1,2] - M[2,2] - M[2,1])^2)^0.5
-    Neel = (norm(M[1,1] - M[1,2] + M[2,2] - M[2,1])^2)^0.5
+    mag = (norm(M[1,1]) + norm(M[2,1]) + norm(M[2,2]) + norm(M[1,2]))/4
+    ferro = norm((M[1,1] + M[1,2] + M[2,2] + M[2,1])/4)
+    stripy = norm((M[1,1] - M[1,2] - M[2,2] + M[2,1])/4)
+    zigzag = norm((M[1,1] + M[1,2] - M[2,2] - M[2,1])/4)
+    Neel = norm((M[1,1] - M[1,2] + M[2,2] - M[2,1])/4)
     return mag, ferro, stripy, zigzag, Neel
 end
 
 Random.seed!(100)
-folder, D, χ, tol, maxiter, miniter = "./../../../../data1/xyzhang/ADBCVUMPS/K_J_Γ_Γ′/", 5, 50, 1e-10, 10, 2
-
+folder, D, χ, tol, maxiter, miniter = "./../../../../data/xyzhang/ADBCVUMPS/K_Γ/", 4, 20, 1e-10, 10, 2
+ϕ = [0.01:0.01:0.08;0.1:0.05:1.0]
 magplot = plot()
-model = K_J_Γ_Γ′(-1.0, -0.1, 0.3, -0.02)
 mag, ferro, stripy, zigzag, Neel = [], [], [], [], []
-# for x in degree
+for x in K_Γ
+    model = K_Γ(x)
     y1, y2, y3, y4, y5 = magnetisation(model, folder, D, χ, tol, maxiter, miniter)
     mag = [mag; y1]
     ferro = [ferro; y2]
     stripy = [stripy; y3]
     zigzag = [zigzag; y4]
     Neel = [Neel; y5]
-# end
-# plot!(magplot, degree, mag, shape = :circle, title = "mag-ϕ", label = "mag D = $(D) χ=$(χ)",legend = :inside, xlabel = "ϕ degree", lw = 2)
-# plot!(magplot, degree, ferro, title = "mag-ϕ", label = "ferro D = $(D)",legend = :inside, xlabel = "ϕ degree", ylabel = "ferro", lw = 2)
-# plot!(magplot, degree, stripy, title = "mag-ϕ", label = "stripy D = $(D)",legend = :inside, xlabel = "ϕ degree", ylabel = "stripy", lw = 2)
-# plot!(magplot, degree, zigzag, shape = :cross, title = "mag-ϕ", label = "zigzag D = $(D) χ=$(χ)",legend = :bottomright, xlabel = "ϕ degree", lw = 2)
-# plot!(magplot, degree, Neel, shape = :diamond, title = "mag-ϕ", label = "Neel D = $(D) χ=$(χ)",legend = :bottomright, xlabel = "ϕ degree", ylabel = "Order Parameters", lw = 2)
-# savefig(magplot,"./plot/mag270-D$(D)_χ$(χ).svg")
-@show zigzag, stripy, ferro, mag, Neel
+end
+plot!(magplot, ϕ, mag, shape = :circle, title = "mag-ϕ", label = "mag D = $(D)",legend = :inside, xlabel = "ϕ degree", lw = 2)
+plot!(magplot, ϕ, ferro, title = "mag-ϕ", label = "ferro D = $(D)",legend = :inside, xlabel = "ϕ degree", ylabel = "ferro", lw = 2)
+plot!(magplot, ϕ, stripy, title = "mag-ϕ", label = "stripy D = $(D)",legend = :inside, xlabel = "ϕ degree", ylabel = "stripy", lw = 2)
+plot!(magplot, ϕ, zigzag, shape = :cross, title = "mag-ϕ", label = "zigzag D = $(D)",legend = :bottomright, xlabel = "ϕ degree", lw = 2)
+plot!(magplot, ϕ, Neel, shape = :diamond, title = "mag-ϕ", label = "Neel D = $(D)",legend = :bottomright, xlabel = "ϕ degree", ylabel = "Order Parameters", lw = 2)
+savefig(magplot,"./plot/K_Γ_E-ϕ-D$(D)_χ$(χ).svg")
+# @show zigzag, stripy, ferro, mag, Neel

@@ -13,18 +13,18 @@ function read_low_energy(file)
 end
 
 energyplot = plot()
-for D = 4
-    χ = 20
-    degree = [250.0:2.5:262.5;265.0:1.0:275.0;277.5:2.5:290.0]
+D = 4
+    χ = 50
+    ϕ = 0.01:0.01:0.08
     yenergy = []
-    folder = "./../../../../data1/xyzhang/ADBCVUMPS/Kitaev_Heisenberg/"
-    for x in degree
-        file = folder*"Kitaev_Heisenberg{Float64}($(x))_CuArray/Kitaev_Heisenberg{Float64}($(x))_CuArray_D$(D)_chi$(χ)_tol1.0e-10_maxiter10_miniter2.log"
+    folder = "./../../../../data/xyzhang/ADBCVUMPS/K_Γ/"
+    for x in ϕ
+        file = folder*"K_Γ{Float64}($(x))_CuArray/D$(D)_chi$(χ)_tol1.0e-10_maxiter10_miniter2.log"
         yenergy = [yenergy; read_low_energy(file)]
     end
-    # degree = 0:pi/36:(2*pi-pi/36)
-    # plot!(energyplot, degree, yenergy, xticks=(0.5 * pi .* (0:4), ["0", "π/2", "π", "3π/2", "2π"]), title = "energy-ϕ", label = "Stripy Ordered",legend = :bottomright, xlabel = "ϕ degree", ylabel = "E", lw = 3)
-    plot!(energyplot, degree, yenergy, title = "energy-ϕ", label = "D = $(D)",legend = :bottomright, xlabel = "ϕ degree", ylabel = "E", lw = 2)
-end
-vline!(energyplot, [270])
-# savefig(energyplot,"./plot/Kitaev_Heisenberg-ϕ_90.0.svg")
+    # Γ = 0:pi/36:(2*pi-pi/36)
+    # plot!(energyplot, Γ, yenergy, xticks=(0.5 * pi .* (0:4), ["0", "π/2", "π", "3π/2", "2π"]), title = "energy-ϕ", label = "Stripy Ordered",legend = :bottomright, xlabel = "ϕ Γ", ylabel = "E", lw = 3)
+    plot!(energyplot, ϕ, yenergy, title = "energy-ϕ", label = "D = $(D)",legend = :bottomright, xlabel = "ϕ", ylabel = "E", lw = 2)
+
+# vline!(energyplot, [270])
+# savefig(energyplot,"./plot/K_Γ-ϕ.svg")

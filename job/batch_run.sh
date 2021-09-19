@@ -1,5 +1,5 @@
 #!/bin/bash
-model=Kitaev_Heisenberg{Float64}
+model=K_Γ{Float64}
 D=4
 chi=20
 
@@ -11,12 +11,13 @@ chi=20
 
 # cd ../../job/
 
-for i in $(seq 280.0 2.5 285.0); do cp degree0.0_D${D}_chi${chi} degree${i}_D${D}_chi${chi} && sed -i "7s/0.0/$i/1" degree${i}_D${D}_chi${chi}; done
+for i in $(seq 0.1 0.05 1.0); do cp K_gamma0.1_D${D}_chi${chi} K_gamma${i}_D${D}_chi${chi} && sed -i "7s/0.1/$i/1" K_gamma${i}_D${D}_chi${chi}; done
 
 # grep degree *_chi${chi}
-
-# for i in $(seq 240.0 2.5 247.5); do qsub -V degree${i}_D${D}_chi${chi}; done
-
+# cd ~/../../data/xyzhang/ADBCVUMPS/K_Γ/
+# for i in $(seq 0.01 0.01 0.08); do cd ${model}\(${i}\)_CuArray && cp D4_chi20_tol1.0e-10_maxiter10_miniter2.jld2 D4_chi50_tol1.0e-10_maxiter10_miniter2.jld2 && cd ..; done
+for i in $(seq 0.1 0.05 1.0); do qsub -V K_gamma${i}_D${D}_chi${chi}; done
+for i in $(seq 0.15 0.05 1.0); do rm K_gamma${i}_D${D}_chi${chi}; done
 # for i in $(seq 72.0 3.0 90.0); do qdel $i; done
 # SHELL_FOLDER=$(cd "$(dirname "$0")";pwd)
 # echo $SHELL_FOLDER
