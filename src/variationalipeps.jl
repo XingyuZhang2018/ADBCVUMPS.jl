@@ -16,7 +16,7 @@ function energy(h, bulk, oc, key; verbose = true, savefile = true)
     # bcipeps = indexperm_symmetrize(bcipeps)  # NOTE: this is not good
     Ni,Nj = size(bulk)
     ap = [ein"abcdx,ijkly -> aibjckdlxy"(bulk[i], conj(bulk[i])) for i = 1:Ni*Nj]
-    ap = [reshape(ap[i], D^2, D^2, D^2, D^2, 2, 2) for i = 1:Ni*Nj]
+    ap = [reshape(ap[i], D^2, D^2, D^2, D^2, 4, 4) for i = 1:Ni*Nj]
     ap = reshape(ap, Ni, Nj)
     a = [ein"ijklaa -> ijkl"(ap[i]) for i = 1:Ni*Nj]
     a = reshape(a, Ni, Nj)
@@ -67,19 +67,27 @@ function expectationvalue(h, ap, env, oc, key)
     hx, hy, hz = h
     ap /= norm(ap)
     etol = 0
+    Zygote.@ignore begin
+        hx = atype(reshape(permutedims(hx, (1,3,2,4)), (4,4)))
+        hy = atype(reshape(ein"ae,bfcg,dh -> abefcdgh"(I(2), hy, I(2)), (4,4,4,4)))
+        hz = atype(reshape(ein"ae,bfcg,dh -> abefcdgh"(I(2), hz, I(2)), (4,4,4,4)))
+    end
     for j = 1:Nj, i = 1:Ni
-        if (i,j) in [(1,1),(2,2)]
-            hij = hy
-        else
-            hij = hx
-        end
         ir = Ni + 1 - i
         jr = j + 1 - (j==Nj) * Nj
         lr = oc1(FL[i,j],ALu[i,j],ap[i,j],ALd[ir,j],Cu[i,j],Cd[ir,j],FR[i,jr],ARu[i,jr],ap[i,jr],ARd[ir,jr])
-        e = ein"pqrs, pqrs -> "(lr,hij)
+        ey = ein"pqrs, pqrs -> "(lr,hy)
         n = ein"pprr -> "(lr)
-        println("── = $(Array(e)[]/Array(n)[])")
-        etol += Array(e)[]/Array(n)[]
+        println("hy = $(Array(ey)[]/Array(n)[])")
+        etol += Array(ey)[]/Array(n)[]
+
+        lr2 = ein"(((((aeg,abc),cd),ehfbpq),ghi),ij),dfj -> pq"(FL[i,j],ALu[i,j],Cu[i,j],ap[i,j],ALd[ir,j],Cd[ir,j],FR[i,j])
+        ex = ein"pq, pq -> "(lr2,hx)
+        # ez = ein"pq, pq -> "(lr2,hz)
+        n = Array(ein"pp -> "(lr2))[]
+        println("hx = $(Array(ex)[]/n)")
+        # println("hz = $(Array(ez)[]/n)")
+        etol += Array(ex)[]/n
     end
     
     # chkp_file_bgobs = folder*"bgobs_D$(D^2)_chi$(χ).jld2"
@@ -102,16 +110,13 @@ function expectationvalue(h, ap, env, oc, key)
     # end
 
     for j = 1:Nj, i = 1:Ni
-        if (i,j) in [(1,1),(2,2)]
-            hij = hz
-            ir = i + 1 - Ni * (i==Ni)
-            # lr2 = oc2(BgFL[i,j],ALu[i,j],Cu[i,j],ap[i,j],ap[ir,j],ALd[i,j],Cd[i,j],BgFR[i,j])
-            lr2 = oc2(ALu[i,j],Cu[i,j],FLu[i,j],ap[i,j],FRu[i,j],FL[ir,j],ap[ir,j],FR[ir,j],ALd[i,j],Cd[i,j])
-            e2 = ein"pqrs, pqrs -> "(lr2,hij)
-            n2 = ein"pprr -> "(lr2)
-            println("| = $(Array(e2)[]/Array(n2)[])") 
-            etol += Array(e2)[]/Array(n2)[]
-        end
+        ir = i + 1 - Ni * (i==Ni)
+        # lr2 = oc2(BgFL[i,j],ALu[i,j],Cu[i,j],ap[i,j],ap[ir,j],ALd[i,j],Cd[i,j],BgFR[i,j])
+        lr3 = oc2(ALu[i,j],Cu[i,j],FLu[i,j],ap[i,j],FRu[i,j],FL[ir,j],ap[ir,j],FR[ir,j],ALd[i,j],Cd[i,j])
+        ez = ein"pqrs, pqrs -> "(lr3,hz)
+        n = ein"pprr -> "(lr3)
+        println("hz = $(Array(ez)[]/Array(n)[])") 
+        etol += Array(ez)[]/Array(n)[]
     end
 
     if field != [0.0,0.0,0.0]
@@ -165,7 +170,7 @@ function init_ipeps(model::HamiltonianModel, field::Vector{Float64} = [0.0,0.0,0
         bulk = load(chkp_file)["bcipeps"]
         verbose && println("load BCiPEPS from $chkp_file")
     else
-        bulk = rand(ComplexF64,D,D,D,D,2,4)
+        bulk = rand(ComplexF64,D,D,D,D,4,2)
         verbose && println("random initial BCiPEPS $chkp_file")
     end
     bulk /= norm(bulk)
@@ -185,9 +190,9 @@ The energy is calculated using vumps with key include parameters `χ`, `tol` and
 function optimiseipeps(bulk, key; f_tol = 1e-6, opiter = 100, verbose= false, optimmethod = LBFGS(m = 20)) where LT
     _, model, _, atype, D, χ, _, _, _ = key
     # h = atype(hamiltonian(model))
-    hx, hy, hz = hamiltonian(model)
-    h = (atype(hx),atype(hy),atype(hz))
-    Ni, Nj = 2, 2
+    h = hamiltonian(model)
+    # h = (atype(hx),atype(hy),atype(hz))
+    Ni, Nj = 1, 2
     to = TimerOutput()
     oc = optcont(D, χ)
     f(x) = @timeit to "forward" real(energy(h, buildbcipeps(atype(x),Ni,Nj), oc, key; verbose=verbose))

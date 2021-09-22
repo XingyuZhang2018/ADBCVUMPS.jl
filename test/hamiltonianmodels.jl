@@ -29,4 +29,10 @@ using ADBCVUMPS:diaglocal
     for i = 1:3
         @test h1[i] ≈ h2[i]
     end
+
+    h1 = hamiltonian(K_Γ(0.0))
+    h2 = hamiltonian(Kitaev(-1.0,-1.0,-1.0))
+    for i = 1:3
+        @test h1[i] ≈ h2[i]
+    end
 end
