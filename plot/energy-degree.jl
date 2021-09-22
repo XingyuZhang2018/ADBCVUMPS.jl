@@ -13,11 +13,11 @@ function read_low_energy(file)
 end
 
 energyplot = plot()
-D = 4
+D = 5
     χ = 50
-    ϕ = 0.01:0.01:0.08
+    ϕ = 0.01:0.005:0.035
     yenergy = []
-    folder = "./../../../../data/xyzhang/ADBCVUMPS/K_Γ/"
+    folder = "./../../../../data1/xyzhang/ADBCVUMPS/K_Γ/"
     for x in ϕ
         file = folder*"K_Γ{Float64}($(x))_CuArray/D$(D)_chi$(χ)_tol1.0e-10_maxiter10_miniter2.log"
         yenergy = [yenergy; read_low_energy(file)]

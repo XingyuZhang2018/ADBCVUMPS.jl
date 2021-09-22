@@ -53,11 +53,11 @@ function magnetisation(model, folder, D, χ, tol, maxiter, miniter)
 end
 
 Random.seed!(100)
-folder, D, χ, tol, maxiter, miniter = "./../../../../data/xyzhang/ADBCVUMPS/K_Γ/", 4, 20, 1e-10, 10, 2
-ϕ = [0.01:0.01:0.08;0.1:0.05:1.0]
+folder, D, χ, tol, maxiter, miniter = "./../../../../data1/xyzhang/ADBCVUMPS/K_Γ/", 4, 30, 1e-10, 10, 2
+ϕ = 0.0:0.005:0.035
 magplot = plot()
 mag, ferro, stripy, zigzag, Neel = [], [], [], [], []
-for x in K_Γ
+for x in ϕ
     model = K_Γ(x)
     y1, y2, y3, y4, y5 = magnetisation(model, folder, D, χ, tol, maxiter, miniter)
     mag = [mag; y1]
@@ -71,5 +71,5 @@ plot!(magplot, ϕ, ferro, title = "mag-ϕ", label = "ferro D = $(D)",legend = :i
 plot!(magplot, ϕ, stripy, title = "mag-ϕ", label = "stripy D = $(D)",legend = :inside, xlabel = "ϕ degree", ylabel = "stripy", lw = 2)
 plot!(magplot, ϕ, zigzag, shape = :cross, title = "mag-ϕ", label = "zigzag D = $(D)",legend = :bottomright, xlabel = "ϕ degree", lw = 2)
 plot!(magplot, ϕ, Neel, shape = :diamond, title = "mag-ϕ", label = "Neel D = $(D)",legend = :bottomright, xlabel = "ϕ degree", ylabel = "Order Parameters", lw = 2)
-savefig(magplot,"./plot/K_Γ_E-ϕ-D$(D)_χ$(χ).svg")
+# savefig(magplot,"./plot/K_Γ_E-ϕ-D$(D)_χ$(χ).svg")
 # @show zigzag, stripy, ferro, mag, Neel

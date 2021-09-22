@@ -4,18 +4,18 @@ using CUDA
 using Plots
 CUDA.allowscalar(false)
 
-device!(0)
+# device!(0)
 function new_energy(bulk, new_key)
-    folder, model, atype, D, χ, tol, maxiter, miniter = new_key
+    folder, model, field, atype, D, χ, tol, maxiter, miniter = new_key
     hx, hy, hz = hamiltonian(model)
     h = (atype(hx),atype(hy),atype(hz))
     oc = optcont(D, χ)
     energy(h, buildbcipeps(atype(bulk),2,2), oc, new_key; verbose = true, savefile = true)
 end
 
-model = K_J_Γ_Γ′(-1.0, -0.1, 0.3, -0.02)
-folder = "./../../../../data1/xyzhang/ADBCVUMPS/K_J_Γ_Γ′/"
-atype, D, χ, tol, maxiter, miniter = CuArray, 4, 50, 1e-10, 10, 2
+model = K_Γ(0.0)
+folder = "./../../../../data1/xyzhang/ADBCVUMPS/K_Γ/"
+field, atype, D, χ, tol, maxiter, miniter = 0.0, CuArray, 5, 50, 1e-10, 10, 2
 
 bulk, _ = init_ipeps(model; folder = folder, atype = atype, D=D, χ=χ, tol=tol, maxiter=maxiter, miniter=miniter)
 
@@ -23,12 +23,12 @@ x = 50:10:80
 yenergy = []
 # ymag = []
 for χ in x
-    new_key = (folder, model, atype, D, χ, tol, maxiter, miniter)
+    new_key = (folder, model, field, atype, D, χ, tol, maxiter, miniter)
     ener = new_energy(bulk, new_key)
     yenergy = [yenergy; ener]
     # ymag = [ymag; mag]
 end
-yenergy /= 2
+# yenergy /= 2
 energyplot = plot()
 # magplot = plot()
 x
