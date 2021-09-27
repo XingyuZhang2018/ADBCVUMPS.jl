@@ -13,13 +13,14 @@ function read_low_energy(file)
 end
 
 energyplot = plot()
-D = 5
-    χ = 50
-    ϕ = 0.01:0.005:0.035
+D = 2
+    χ = 20
+    ϕ = 0.0:0.05:1.0
     yenergy = []
-    folder = "./../../../../data1/xyzhang/ADBCVUMPS/K_Γ/"
+    folder = "./../../../../data1/xyzhang/ADBCVUMPS/K_Γ_1x2/"
     for x in ϕ
-        file = folder*"K_Γ{Float64}($(x))_CuArray/D$(D)_chi$(χ)_tol1.0e-10_maxiter10_miniter2.log"
+        model = K_Γ(x)
+        file = folder*"$(model)_Array/D$(D)_chi$(χ)_tol1.0e-10_maxiter10_miniter2.log"
         yenergy = [yenergy; read_low_energy(file)]
     end
     # Γ = 0:pi/36:(2*pi-pi/36)
@@ -27,4 +28,4 @@ D = 5
     plot!(energyplot, ϕ, yenergy, title = "energy-ϕ", label = "D = $(D)",legend = :bottomright, xlabel = "ϕ", ylabel = "E", lw = 2)
 
 # vline!(energyplot, [270])
-# savefig(energyplot,"./plot/K_Γ-ϕ.svg")
+savefig(energyplot,"./plot/K_Γ_1x2_D$(D)_χ$(χ)-ϕ.svg")
