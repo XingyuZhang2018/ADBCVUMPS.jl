@@ -43,9 +43,9 @@ j ────┴──l──m──┴──── o                    │   
 where the central two block are six order tensor have extra bond `pq` and `rs`
 """
 function optcont(D::Int, χ::Int)
-    sd = Dict('a' => χ, 'b' => D^2,'c' => χ, 'd' => χ, 'e' => D^2, 'f' => χ, 'g' => D^2, 'h' => D^2, 'i' => D^2, 'j' => χ, 'k' => D^2, 'l' => χ, 'm' => χ, 'n' => D^2, 'o' => χ, 'p' => 2, 'q' => 2, 'r' => 2, 's' => 2)
+    sd = Dict('a' => χ, 'b' => D^2,'c' => χ, 'd' => χ, 'e' => D^2, 'f' => χ, 'g' => D^2, 'h' => D^2, 'i' => D^2, 'j' => χ, 'k' => D^2, 'l' => χ, 'm' => χ, 'n' => D^2, 'o' => χ, 'p' => 4, 'q' => 4, 'r' => 4, 's' => 4)
     oc1 = optimize_greedy(ein"agj,abc,gkhbpq,jkl,cd,lm,fio,def,hniers,mno -> pqrs", sd; method=MinSpaceDiff())
-    sd = Dict('a' => χ, 'b' => D^2, 'c' => χ, 'd' => χ, 'e' => D^2, 'f' => D^2, 'g' => χ, 'h' => D^2, 'i' => χ, 'j' => D^2, 'k' => D^2, 'l' => χ, 'm' => D^2, 'n' => χ, 'o' => χ, 'r' => 2, 's' => 2, 'p' => 2, 'q' => 2)
+    sd = Dict('a' => χ, 'b' => D^2, 'c' => χ, 'd' => χ, 'e' => D^2, 'f' => D^2, 'g' => χ, 'h' => D^2, 'i' => χ, 'j' => D^2, 'k' => D^2, 'l' => χ, 'm' => D^2, 'n' => χ, 'o' => χ, 'r' => 4, 's' => 4, 'p' => 4, 'q' => 4)
     oc2 = optimize_greedy(ein"abc,cd,aeg,ehfbpq,dfi,gjl,jmkhrs,iko,lmn,no -> pqrs", sd; method=MinSpaceDiff())
     oc1, oc2
 end
@@ -70,6 +70,7 @@ function expectationvalue(h, ap, env, oc, key)
         hy = atype(reshape(ein"ae,bfcg,dh -> abefcdgh"(I(2), hy, I(2)), (4,4,4,4)))
         hz = atype(reshape(ein"ae,bfcg,dh -> abefcdgh"(I(2), hz, I(2)), (4,4,4,4)))
     end
+
     for j = 1:Nj, i = 1:Ni
         ir = Ni + 1 - i
         jr = j + 1 - (j==Nj) * Nj
@@ -81,10 +82,8 @@ function expectationvalue(h, ap, env, oc, key)
 
         lr2 = ein"(((((aeg,abc),cd),ehfbpq),ghi),ij),dfj -> pq"(FL[i,j],ALu[i,j],Cu[i,j],ap[i,j],ALd[ir,j],Cd[ir,j],FR[i,j])
         ex = ein"pq, pq -> "(lr2,hx)
-        # ez = ein"pq, pq -> "(lr2,hz)
         n = Array(ein"pp -> "(lr2))[]
         println("hx = $(Array(ex)[]/n)")
-        # println("hz = $(Array(ez)[]/n)")
         etol += Array(ex)[]/n
     end
     
