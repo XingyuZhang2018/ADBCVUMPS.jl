@@ -110,8 +110,8 @@ function expectationvalue(h, ap, env, oc, key)
         end
     end
 
-    println("e = $(etol)")
-    return etol
+    println("e = $(etol/Ni/Nj)")
+    return etol/Ni/Nj
 end
 
 """

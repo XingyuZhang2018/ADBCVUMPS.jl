@@ -7,6 +7,7 @@ using LinearAlgebra: norm, I, cross
 using OMEinsum
 using Plots
 using Random
+using Statistics: std
 
 function observable(model, folder, D, χ, tol, maxiter, miniter)
     bulk, key = init_ipeps(model; folder = folder, atype = CuArray, D=D, χ=χ, tol=tol, maxiter=maxiter, miniter=miniter, verbose = true)
@@ -130,12 +131,12 @@ end
 
 
 Random.seed!(100)
-folder, D, χ, tol, maxiter, miniter = "./../../../../data/xyzhang/ADBCVUMPS/K_J_Γ_Γ′_1x2/", 4, 80, 1e-10, 10, 2
-# Γ = 0.125:0.025:0.3
-Γ = 0.3
+folder, tol, maxiter, miniter = "./../../../../data/xyzhang/ADBCVUMPS/K_J_Γ_Γ′_1x3/", 1e-10, 10, 2
+Γ = 0.2
+Dχ = [[5,100]]
 mag, ferro, stripy, zigzag, Neel, E, ΔE, Cross = [], [], [], [], [], [], [], []
-for x in Γ
-    model = K_J_Γ_Γ′(-1.0, 0.0, x, 0.0)
+for (D,χ) in Dχ
+    model = K_J_Γ_Γ′(-1.0, 0.0, Γ, 0.0)
     y1, y2, y3, y4, y5, y6, y7, y8 = observable(model, folder, D, χ, tol, maxiter, miniter)
     mag = [mag; y1]
     ferro = [ferro; y2]
@@ -146,20 +147,22 @@ for x in Γ
     ΔE = [ΔE; y7]
     Cross = [Cross; y8]
 end
+
+# D = 1 ./ (2:1:5)
 # magplot = plot()
-# plot!(magplot, Γ, mag, shape = :circle, title = "mag-Γ", label = "mag D = $(D)",legend = :inside, lw = 2)
-# plot!(magplot, Γ, ferro, shape = :dtriangle, label = "ferro D = $(D)",legend = :inside, lw = 2)
-# plot!(magplot, Γ, stripy, shape = :heptagon, label = "stripy D = $(D)",legend = :inside,  lw = 2)
-# plot!(magplot, Γ, zigzag, shape = :cross, label = "zigzag D = $(D)", lw = 2)
-# plot!(magplot, Γ, Neel, shape = :diamond, label = "Neel D = $(D)",legend = :topright, xlabel = "Γ/|K|", ylabel = "Order Parameters", lw = 2)
+# plot!(magplot, D, mag, shape = :circle, title = "mag-1/D Γ/|K| = $(Γ)", label = "mag ",legend = :inside, lw = 2)
+# plot!(magplot, D, ferro, shape = :dtriangle, label = "ferro",legend = :inside, lw = 2)
+# plot!(magplot, D, stripy, shape = :heptagon, label = "stripy",legend = :inside,  lw = 2)
+# plot!(magplot, D, zigzag, shape = :cross, label = "zigzag", lw = 2)
+# plot!(magplot, D, Neel, shape = :diamond, label = "Neel",legend = :topleft, xlabel = "1/D", ylabel = "Order Parameters", lw = 2)
 
 # Eplot = plot()
-# plot!(Eplot, Γ, E, shape = :auto, label = "E 1x3 cell D = $(D)",legend = :topright, xlabel = "Γ/|K|", ylabel = "E", lw = 2)
+# plot!(Eplot, D, E, shape = :auto, label = "E",legend = :bottomright, xlabel = "1/D", ylabel = "E", lw = 2)
 
 # ΔEplot = plot()
-# plot!(ΔEplot, Γ, abs.(ΔE), shape = :auto, label = "ΔE D = $(D)",legend = :bottomright, xlabel = "Γ/|K|", ylabel = "ΔE", lw = 2)
+# plot!(ΔEplot, D, ΔE, shape = :auto, label = "ΔE",legend = :bottomright, xlabel = "1/D", ylabel = "ΔE", lw = 2)
 
-# Crossplot = plot()
-# plot!(Crossplot, Γ, Cross, shape = :auto, label = "Cross D = $(D)",legend = :bottomright, xlabel = "Γ/|K|", ylabel = "Cross norm", lw = 2)
-# savefig(Eplot,"./plot/K_Γ_1x2&1x3_E-Γ-D$(D)_χ$(χ).svg")
-# @show zigzag stripy ferro mag Neel ΔE Cross
+# # Crossplot = plot()
+# # plot!(Crossplot, D, Cross, shape = :auto, label = "Cross",legend = :bottomright, xlabel = "1/D", ylabel = "Cross norm", lw = 2)
+# # savefig(magplot,"./plot/K_Γ_1x2_E-Γ-D$(D)_χ$(χ).svg")
+@show zigzag stripy ferro mag Neel E ΔE Cross
