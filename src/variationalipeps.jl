@@ -96,17 +96,30 @@ function expectationvalue(h, ap, env, oc, key)
         etol += Array(ez)[]/Array(n)[]
     end
 
-    if field != [0.0,0.0,0.0]
+    if field != 0.0
+        Sx1, Sx2, Sy1, Sy2, Sz1, Sz2 = [],[],[],[],[],[]
+        Zygote.@ignore begin
+            Sx1 = reshape(ein"ab,cd -> acbd"(σx/2, I(2)), (4,4))
+            Sx2 = reshape(ein"ab,cd -> acbd"(I(2), σx/2), (4,4))
+            Sy1 = reshape(ein"ab,cd -> acbd"(σy/2, I(2)), (4,4))
+            Sy2 = reshape(ein"ab,cd -> acbd"(I(2), σy/2), (4,4))
+            Sz1 = reshape(ein"ab,cd -> acbd"(σz/2, I(2)), (4,4))
+            Sz2 = reshape(ein"ab,cd -> acbd"(I(2), σz/2), (4,4))
+        end
         for j = 1:Nj, i = 1:Ni
             ir = Ni + 1 - i
             lr3 = ein"(((((aeg,abc),cd),ehfbpq),ghi),ij),dfj -> pq"(FL[i,j],ALu[i,j],Cu[i,j],ap[i,j],ALd[ir,j],Cd[ir,j],FR[i,j])
-            Mx = ein"pq, pq -> "(lr3,atype(σx/2))
-            My = ein"pq, pq -> "(lr3,atype(σy/2))
-            Mz = ein"pq, pq -> "(lr3,atype(σz/2))
+            Mx1 = ein"pq, pq -> "(lr3,atype(Sx1))
+            Mx2 = ein"pq, pq -> "(lr3,atype(Sx2))
+            My1 = ein"pq, pq -> "(lr3,atype(Sy1))
+            My2 = ein"pq, pq -> "(lr3,atype(Sy2))
+            Mz1 = ein"pq, pq -> "(lr3,atype(Sz1))
+            Mz2 = ein"pq, pq -> "(lr3,atype(Sz2))
             n3 = Array(ein"pp -> "(lr3))[]
-            M = [Array(Mx)[]/n3, Array(My)[]/n3, Array(Mz)[]/n3]
-            @show M
-            etol += M' * field
+            M1 = [Array(Mx1)[]/n3, Array(My1)[]/n3, Array(Mz1)[]/n3]
+            M2 = [Array(Mx2)[]/n3, Array(My2)[]/n3, Array(Mz2)[]/n3]
+            @show M1 M2
+            etol -= (M1 + M2)' * field / 2
         end
     end
 
@@ -139,8 +152,13 @@ end
 Initial `bcipeps` and give `key` for use of later optimization. The key include `model`, `D`, `χ`, `tol` and `maxiter`. 
 The iPEPS is random initial if there isn't any calculation before, otherwise will be load from file `/data/model_D_chi_tol_maxiter.jld2`
 """
-function init_ipeps(model::HamiltonianModel, field::Vector{Float64} = [0.0,0.0,0.0];  folder::String="./data/", atype = Array, D::Int, χ::Int, tol::Real, maxiter::Int, miniter::Int, verbose = true)
-    field == [0.0,0.0,0.0] ? folder *= "$(model)_$(atype)/" : folder *= "$(model)_field$(field)_$(atype)/"
+function init_ipeps(model::HamiltonianModel, fdirection::Vector{Float64} = [0.0,0.0,0.0], field::Float64 = 0.0;  folder::String="./data/", atype = Array, D::Int, χ::Int, tol::Real, maxiter::Int, miniter::Int, verbose = true)
+    if field == 0.0
+        folder *= "$(model)/"
+    else
+        folder *= "$(model)_field$(fdirection)_$(field)/"
+        field = field * fdirection / norm(fdirection)
+    end
     mkpath(folder)
     chkp_file = folder*"D$(D)_chi$(χ)_tol$(tol)_maxiter$(maxiter)_miniter$(miniter).jld2"
     if isfile(chkp_file)

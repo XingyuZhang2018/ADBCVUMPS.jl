@@ -86,7 +86,7 @@ function main()
     opiter = parsed_args["opiter"]
     f_tol = parsed_args["f_tol"]
     folder = parsed_args["folder"]
-    bulk, key = init_ipeps(K_J_Γ_Γ′(K,J,Γ,Γ′), field*[1.0,1.0,1.0]; folder = folder, atype = CuArray, D=D, χ=χ, tol=tol, maxiter=maxiter, miniter=miniter)
+    bulk, key = init_ipeps(K_J_Γ_Γ′(K,J,Γ,Γ′), [1.0,1.0,1.0], field; folder = folder, atype = CuArray, D=D, χ=χ, tol=tol, maxiter=maxiter, miniter=miniter)
     optimiseipeps(bulk, key; f_tol = f_tol, opiter = opiter, verbose = true)
 end
 

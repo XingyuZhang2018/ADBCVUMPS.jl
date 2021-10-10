@@ -4,31 +4,31 @@ using CUDA
 using Plots
 CUDA.allowscalar(false)
 
-device!(0)
+device!(7)
 function new_energy(bulk, new_key)
     folder, model, field, atype, D, χ, tol, maxiter, miniter = new_key
     h = hamiltonian(model)
     oc = optcont(D, χ)
-    Ni,Nj = 1,3
+    Ni,Nj = 1,2
     energy(h, buildbcipeps(atype(bulk),Ni,Nj), oc, new_key; verbose = true, savefile = true)
 end
 
-for Γ in 0.2
-    model = K_J_Γ_Γ′(-1.0, 0.0, Γ, 0.0)
-    folder = "./../../../../data/xyzhang/ADBCVUMPS/K_J_Γ_Γ′_1x3/"
-    field, atype, D, χ, tol, maxiter, miniter = 0.0, CuArray, 5, 100, 1e-10, 10, 2
+model = K_J_Γ_Γ′(-0.938, -0.0, 0.347, -0.03)
+folder = "./../../../../data/xyzhang/ADBCVUMPS/K_J_Γ_Γ′_1x2/"
+field, atype, D, χ, tol, maxiter, miniter = 0.5*[1,1,1]/sqrt(3), CuArray, 4, 80, 1e-10, 10, 2
 
-    bulk, key = init_ipeps(model; folder = folder, atype = atype, D=D, χ=χ, tol=tol, maxiter=maxiter, miniter=miniter)
-    folder, model, field, atype, D, χ, tol, maxiter, miniter = key
+bulk, key = init_ipeps(model, field; folder = folder, atype = atype, D=D, χ=χ, tol=tol, maxiter=maxiter, miniter=miniter)
+folder, model, field, atype, D, χ, tol, maxiter, miniter = key
 
-    yenergy = []
-    # ymag = []
-    for χ in 100
-        new_key = (folder, model, field, atype, D, χ, tol, 10, 2)
-        ener = new_energy(bulk, new_key)
-        yenergy = [yenergy; ener]
-        # ymag = [ymag; mag]
-    end
+x = 80
+
+yenergy = []
+# ymag = []
+for χ in x
+    new_key = (folder, model, field, atype, D, χ, tol, 10, 2)
+    ener = new_energy(bulk, new_key)
+    yenergy = [yenergy; ener]
+    # ymag = [ymag; mag]
 end
 # yenergy /= 2
 # energyplot = plot()

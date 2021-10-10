@@ -131,9 +131,9 @@ end
 
 
 Random.seed!(100)
-folder, tol, maxiter, miniter = "./../../../../data/xyzhang/ADBCVUMPS/K_J_Γ_Γ′_1x3/", 1e-10, 10, 2
-Γ = 0.2
-Dχ = [[5,100]]
+folder, tol, maxiter, miniter = "./../../../../data/xyzhang/ADBCVUMPS/K_J_Γ_Γ′_1x2/", 1e-10, 10, 2
+Γ = 0.03
+Dχ = [[2,20]]
 mag, ferro, stripy, zigzag, Neel, E, ΔE, Cross = [], [], [], [], [], [], [], []
 for (D,χ) in Dχ
     model = K_J_Γ_Γ′(-1.0, 0.0, Γ, 0.0)

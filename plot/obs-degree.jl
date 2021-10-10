@@ -7,9 +7,23 @@ using LinearAlgebra: norm, I, cross
 using OMEinsum
 using Plots
 using Random
+using Statistics: std
 
-function observable(model, folder, D, χ, tol, maxiter, miniter)
-    bulk, key = init_ipeps(model; folder = folder, atype = CuArray, D=D, χ=χ, tol=tol, maxiter=maxiter, miniter=miniter, verbose = true)
+function read_xy(file)
+    f = open(file, "r" )
+    n = countlines(f)
+    seekstart(f)
+    X = zeros(n)
+    Y = zeros(n)
+    for i = 1:n
+        x,y = split(readline(f), ",")
+        X[i],Y[i] = parse(Float64,x),parse(Float64,y)
+    end
+    X,Y
+end
+
+function observable(model, f, folder, D, χ, tol, maxiter, miniter)
+    bulk, key = init_ipeps(model, [1.0,1.0,1.0], f; folder = folder, atype = CuArray, D=D, χ=χ, tol=tol, maxiter=maxiter, miniter=miniter, verbose = true)
     folder, model, field, atype, D, χ, tol, maxiter, miniter = key
     h = hamiltonian(model)
     oc = optcont(D, χ)
@@ -38,6 +52,7 @@ function observable(model, folder, D, χ, tol, maxiter, miniter)
     Sy2 = reshape(ein"ab,cd -> acbd"(I(2), σy/2), (4,4))
     Sz1 = reshape(ein"ab,cd -> acbd"(σz/2, I(2)), (4,4))
     Sz2 = reshape(ein"ab,cd -> acbd"(I(2), σz/2), (4,4))
+    etol = 0.0
     for j = 1:Nj, i = 1:Ni
         jr = j + 1 - (j==Nj)*Nj
         ir = Ni + 1 - i
@@ -61,6 +76,9 @@ function observable(model, folder, D, χ, tol, maxiter, miniter)
             print(real(M[j,2][k])) 
             k == 3 ? println("};") : print(",")
         end
+        if field != 0.0
+            etol -= (real(M[j,1] + M[j,2]))' * field / 2
+        end
         # println("M = $(sqrt(real(M[i,j]' * M[i,j])))")
     end
     Cross = norm(cross(M[1,1],M[1,2]))
@@ -74,7 +92,6 @@ function observable(model, folder, D, χ, tol, maxiter, miniter)
     oc1, oc2 = oc
     hx, hy, hz = h
     ap /= norm(ap)
-    etol = 0
     hx = reshape(permutedims(hx, (1,3,2,4)), (4,4))
     hy = reshape(ein"ae,bfcg,dh -> abefcdgh"(I(2), hy, I(2)), (4,4,4,4))
     hz = reshape(ein"ae,bfcg,dh -> abefcdgh"(I(2), hz, I(2)), (4,4,4,4))
@@ -110,33 +127,34 @@ function observable(model, folder, D, χ, tol, maxiter, miniter)
     # ΔE = real(Ex - (Ey + Ez)/2)
     ΔE = std(real.([Ex, Ey, Ez]))
     @show ΔE
-    if field != [0.0,0.0,0.0]
-        for j = 1:Nj, i = 1:Ni
-            ir = Ni + 1 - i
-            lr3 = ein"(((((aeg,abc),cd),ehfbpq),ghi),ij),dfj -> pq"(FL[i,j],ALu[i,j],Cu[i,j],ap[i,j],ALd[ir,j],Cd[ir,j],FR[i,j])
-            Mx = ein"pq, pq -> "(lr3,atype(σx/2))
-            My = ein"pq, pq -> "(lr3,atype(σy/2))
-            Mz = ein"pq, pq -> "(lr3,atype(σz/2))
-            n3 = Array(ein"pp -> "(lr3))[]
-            M = [Array(Mx)[]/n3, Array(My)[]/n3, Array(Mz)[]/n3]
-            @show M
-            etol += M' * field
-        end
-    end
 
     println("e = $(etol/Ni/Nj)")
     return mag, ferro, stripy, zigzag, Neel, real(etol/Ni/Nj), ΔE, Cross
 end
 
+function deriv_y(x,y)
+    n = length(x)
+    dy = zeros(n)
+    for i = 1:n
+        if i == 1
+            dy[i] = (y[i+1] - y[i])/(x[i+1] - x[i])
+        elseif i == n
+            dy[i] = (y[i] - y[i-1])/(x[i] - x[i-1])
+        else
+            dy[i] = (y[i+1] - y[i-1])/(x[i+1] - x[i-1])
+        end
+    end
+    return dy
+end
 
 Random.seed!(100)
 folder, D, χ, tol, maxiter, miniter = "./../../../../data/xyzhang/ADBCVUMPS/K_J_Γ_Γ′_1x2/", 4, 80, 1e-10, 10, 2
-# Γ = 0.125:0.025:0.3
-Γ = 0.3
+f = [0.0;0.1;0.15:0.01:0.22;0.3:0.1:0.8]
+# Γ = 0.3
 mag, ferro, stripy, zigzag, Neel, E, ΔE, Cross = [], [], [], [], [], [], [], []
-for x in Γ
-    model = K_J_Γ_Γ′(-1.0, 0.0, x, 0.0)
-    y1, y2, y3, y4, y5, y6, y7, y8 = observable(model, folder, D, χ, tol, maxiter, miniter)
+for x in f
+    model = K_J_Γ_Γ′(-1.0, -0.1, 0.3, -0.02)
+    y1, y2, y3, y4, y5, y6, y7, y8 = observable(model, x, folder, D, χ, tol, maxiter, miniter)
     mag = [mag; y1]
     ferro = [ferro; y2]
     stripy = [stripy; y3]
@@ -146,18 +164,31 @@ for x in Γ
     ΔE = [ΔE; y7]
     Cross = [Cross; y8]
 end
-# magplot = plot()
-# plot!(magplot, Γ, mag, shape = :circle, title = "mag-Γ", label = "mag D = $(D)",legend = :inside, lw = 2)
-# plot!(magplot, Γ, ferro, shape = :dtriangle, label = "ferro D = $(D)",legend = :inside, lw = 2)
-# plot!(magplot, Γ, stripy, shape = :heptagon, label = "stripy D = $(D)",legend = :inside,  lw = 2)
-# plot!(magplot, Γ, zigzag, shape = :cross, label = "zigzag D = $(D)", lw = 2)
-# plot!(magplot, Γ, Neel, shape = :diamond, label = "Neel D = $(D)",legend = :topright, xlabel = "Γ/|K|", ylabel = "Order Parameters", lw = 2)
+
+magplot = plot()
+plot!(magplot, f, mag, shape = :auto, title = "mag-h", label = "mag D = $(D)", lw = 2)
+plot!(magplot, f, ferro, shape = :auto, label = "ferro D = $(D)", lw = 2)
+plot!(magplot, f, stripy, shape = :auto, label = "stripy D = $(D)", lw = 2)
+plot!(magplot, f, zigzag, shape = :auto, label = "zigzag D = $(D)", lw = 2)
+plot!(magplot, f, Neel, shape = :auto, label = "Neel D = $(D)",legend = :topright, xlabel = "h", ylabel = "Order Parameters", lw = 2)
+dferro = deriv_y(f, ferro)
+plot!(magplot, f, dferro, shape = :auto, label = "dferro D = $(D)", lw = 2)
+# X,Y = read_xy(folder*"2019Gordon-mag.log")
+# plot!(magplot, X, Y, shape = :auto, label = "2019Gordon 5° mag", lw = 2)
+# X,Y = read_xy(folder*"2019Gordon-dmag.log")
+# plot!(magplot, X, Y, shape = :auto, label = "2019Gordon 5° dmag",legend = :topright, xlabel = "h", ylabel = "Order Parameters",rightmargin = 1.5Plots.cm, lw = 2)
+
 
 # Eplot = plot()
-# plot!(Eplot, Γ, E, shape = :auto, label = "E 1x3 cell D = $(D)",legend = :topright, xlabel = "Γ/|K|", ylabel = "E", lw = 2)
+# plot!(Eplot, f, E, shape = :auto, label = "E 1x2 cell D = $(D)",legend = :topright, xlabel = "f", ylabel = "E", lw = 2)
+# dEplot = twinx()
+# dE = deriv_y(f, E)
+# plot!(dEplot, f, dE, shape = :auto, label = "dE 1x2 cell D = $(D)",legend = :topright, xlabel = "f", ylabel = "dE", lw = 2)
+
 
 # ΔEplot = plot()
-# plot!(ΔEplot, Γ, abs.(ΔE), shape = :auto, label = "ΔE D = $(D)",legend = :bottomright, xlabel = "Γ/|K|", ylabel = "ΔE", lw = 2)
+# ΔEplot = twinx()
+# plot!(ΔEplot, f, abs.(ΔE), shape = :x, label = "ΔE D = $(D)",legend = :bottomright, xlabel = "h", ylabel = "ΔE", lw = 2)
 
 # Crossplot = plot()
 # plot!(Crossplot, Γ, Cross, shape = :auto, label = "Cross D = $(D)",legend = :bottomright, xlabel = "Γ/|K|", ylabel = "Cross norm", lw = 2)
