@@ -28,7 +28,7 @@ function parse_commandline()
         "--opiter"
             help = "iterition for optimise"
             arg_type = Int
-            default = 1000
+            default = 200
         "--f_tol"
             help = "tol error for optimise"
             arg_type = Float64
