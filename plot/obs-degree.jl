@@ -8,27 +8,6 @@ using OMEinsum
 using Plots
 using Random
 using Statistics: std
-
-function init_ipeps_type(model::HamiltonianModel, fdirection::Vector{Float64} = [0.0,0.0,0.0], field::Float64 = 0.0, type::String = "ferro"; folder::String="./data/", atype = Array, D::Int, χ::Int, tol::Real, maxiter::Int, miniter::Int, verbose = true)
-    if field == 0.0
-        folder *= "$(model)/"
-    else
-        folder *= "$(model)_field$(fdirection)_$(field)$(type)/"
-        field = field * fdirection / norm(fdirection)
-    end
-    mkpath(folder)
-    chkp_file = folder*"D$(D)_chi$(χ)_tol$(tol)_maxiter$(maxiter)_miniter$(miniter).jld2"
-    if isfile(chkp_file)
-        bulk = load(chkp_file)["bcipeps"]
-        verbose && println("load BCiPEPS from $chkp_file")
-    else
-        bulk = rand(ComplexF64,D,D,D,D,4,2)
-        verbose && println("random initial BCiPEPS $chkp_file")
-    end
-    bulk /= norm(bulk)
-    key = (folder, model, field, atype, D, χ, tol, maxiter, miniter)
-    return bulk, key
-end
     
 function read_xy(file)
     f = open(file, "r" )
@@ -71,7 +50,7 @@ function observable(model, fdirection, field, type, folder, D, χ, tol, maxiter,
         f = open(observable_log, "r" )
         mag, ferro, stripy, zigzag, Neel, etol, ΔE, Cross = parse.(Float64,split(readline(f), "   "))
     else
-        bulk, key = init_ipeps_type(model, fdirection, field, type; folder = folder, atype = CuArray, D=D, χ=χ, tol=tol, maxiter=maxiter, miniter=miniter, verbose = true)
+        bulk, key = init_ipeps(model, fdirection, field; folder = folder, type = type, atype = CuArray, D=D, χ=χ, tol=tol, maxiter=maxiter, miniter=miniter, verbose = true)
         folder, model, field, atype, D, χ, tol, maxiter, miniter = key
         h = hamiltonian(model)
         oc = optcont(D, χ)
@@ -203,10 +182,11 @@ end
 
 Random.seed!(100)
 folder, D, χ, tol, maxiter, miniter = "./../../../../data/xyzhang/ADBCVUMPS/K_J_Γ_Γ′_1x2/", 4, 80, 1e-10, 10, 2
-f = 0.0:0.01:0.8
+f = 0.01:0.02:1.17
 # f = 0.0:0.01:0.03
-fdirection = [1.0,1.0,1.0]
+fdirection = [1.0, 1.0, 0.825221]
 model = K_J_Γ_Γ′(-1.0, -0.1, 0.3, -0.02)
+type = "_random"
 # Γ = 0.3
 field, mag, ferro, stripy, zigzag, Neel, E, ΔE, Cross = [], [], [], [], [], [], [], [], []
 for x in f
@@ -214,18 +194,18 @@ for x in f
     if x == 0.0
         tfolder = folder*"$(model)/"
     else
-        if x > 0.12
-            tfolder = folder*"$(model)_field$(fdirection)_$(x)_ferro/"
-        else
-            tfolder = folder*"$(model)_field$(fdirection)_$(x)/"
-        end
+    #     if x > 0.12
+            tfolder = folder*"$(model)_field$(fdirection)_$(x)$(type)/"
+        # else
+        #     tfolder = folder*"$(model)_field$(fdirection)_$(x)/"
+        # end
     end
     if isdir(tfolder)
-        if x > 0.12
-            y1, y2, y3, y4, y5, y6, y7, y8 = observable(model, fdirection, x, "_ferro", folder, D, χ, tol, maxiter, miniter)
-        else
-            y1, y2, y3, y4, y5, y6, y7, y8 = observable(model, fdirection, x, "", folder, D, χ, tol, maxiter, miniter)
-        end
+        # if x > 0.12
+            y1, y2, y3, y4, y5, y6, y7, y8 = observable(model, fdirection, x, "$(type)", folder, D, χ, tol, maxiter, miniter)
+        # else
+            # y1, y2, y3, y4, y5, y6, y7, y8 = observable(model, fdirection, x, "", folder, D, χ, tol, maxiter, miniter)
+        # end
         field = [field; x]
         mag = [mag; y1]
         ferro = [ferro; y2]
@@ -239,26 +219,26 @@ for x in f
 end
 
 magplot = plot()
-# plot!(magplot, field, mag, shape = :auto, title = "mag-h", label = "mag D = $(D)", lw = 2)
+plot!(magplot, field, mag, shape = :auto, title = "mag-h", label = "mag D = $(D)", lw = 2)
 plot!(magplot, field, ferro, shape = :auto, label = "ferro D = $(D)", lw = 2)
-# plot!(magplot, field, stripy, shape = :auto, label = "stripy D = $(D)", lw = 2)
-# plot!(magplot, field, Neel, shape = :auto, label = "Neel D = $(D)", lw = 2)
+plot!(magplot, field, stripy, shape = :auto, label = "stripy D = $(D)", lw = 2)
+plot!(magplot, field, Neel, shape = :auto, label = "Neel D = $(D)", lw = 2)
 plot!(magplot, field, zigzag, shape = :auto, label = "zigzag D = $(D)",legend = :outertop, xlabel = "h", ylabel = "Order Parameters", lw = 2)
-# dferro = deriv_y(field, ferro)/3
+# dferro = deriv_y(field, ferro)
 # plot!(magplot, field, dferro, shape = :auto, label = "dferro D = $(D)", lw = 2)
-X,Y = read_xy(folder*"2021WeiLi-mag.log")
-plot!(magplot, X/187.782, Y, shape = :auto, label = "2021WeiLi-mag", lw = 2, rightmargin = 2.5Plots.cm)
-dmag = deriv_y(X/187.782, Y)/2
-plot!(magplot, X/187.782, dmag, shape = :auto, label = "2021WeiLi-dmag", lw = 2, rightmargin = 2.5Plots.cm)
-# X,Y = read_xy(folder*"2019Gordon-dmag.log")
-# # plot!(magplot, X, Y, shape = :auto, label = "2019Gordon 5° dmag",legend = :topright, xlabel = "h", ylabel = "Order Parameters",rightmargin = 1.5Plots.cm, lw = 2)
+# X,Y = read_xy(folder*"2021WeiLi-mag.log")
+# plot!(magplot, X/187.782, Y, shape = :auto, label = "2021WeiLi-mag", lw = 2, rightmargin = 2.5Plots.cm)
+# dmag = deriv_y(X/187.782, Y)/2
+# plot!(magplot, X/187.782, dmag, shape = :auto, label = "2021WeiLi-dmag", lw = 2, rightmargin = 2.5Plots.cm)
+# # X,Y = read_xy(folder*"2019Gordon-dmag.log")
+# # # plot!(magplot, X, Y, shape = :auto, label = "2019Gordon 5° dmag",legend = :topright, xlabel = "h", ylabel = "Order Parameters",rightmargin = 1.5Plots.cm, lw = 2)
 
-# # ΔEplot = plot()
+# # # ΔEplot = plot()
 ΔEplot = twinx()
 plot!(ΔEplot, field, abs.(ΔE), shape = :x, label = "ΔE D = $(D) ferro",legend = :topright, xlabel = "h", ylabel = "ΔE", lw = 2)
 
 # Eplot = plot()
-# plot!(Eplot, field, E, shape = :auto, label = "E 1x2 cell D = $(D) AD",legend = :topright, xlabel = "h", ylabel = "E", lw = 2)
+# plot!(Eplot, field, E, shape = :auto, label = "E 1x2 cell D = $(D) $(type)",legend = :topright, xlabel = "h", ylabel = "E", lw = 2)
 # X,Y1,Y2,Y3,Y4 = read_Exy(folder*"2021WeiLi-E.log")
 # plot!(Eplot, X*sqrt(3), Y1, shape = :auto, label = "2021WeiLi-fDMRG-YC4x12x2",legend = :topright, xlabel = "h", ylabel = "E", lw = 2)
 # plot!(Eplot, X*sqrt(3), Y2, shape = :auto, label = "2021WeiLi-fDMRG-YC6x12x2",legend = :topright, xlabel = "h", ylabel = "E", lw = 2)

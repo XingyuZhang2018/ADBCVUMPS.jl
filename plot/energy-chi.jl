@@ -13,12 +13,33 @@ function new_energy(bulk, new_key)
     energy(h, buildbcipeps(atype(bulk),Ni,Nj), oc, new_key; verbose = true, savefile = true)
 end
 
-model = K_J_Γ_Γ′(-1.0, -0.1, 0.3, -0.02)
-for field in 0.21
-    folder = "./../../../../data/xyzhang/ADBCVUMPS/K_J_Γ_Γ′_1x2/"
-    fdirection, atype, D, χ, tol, maxiter, miniter = [1.0,1.0,1.0], CuArray, 4, 80, 1e-10, 10, 2
+function init_ipeps_type(model::HamiltonianModel, fdirection::Vector{Float64} = [0.0,0.0,0.0], field::Float64 = 0.0, type::String = "ferro"; folder::String="./data/", atype = Array, D::Int, χ::Int, tol::Real, maxiter::Int, miniter::Int, verbose = true)
+    if field == 0.0
+        folder *= "$(model)/"
+    else
+        folder *= "$(model)_field$(fdirection)_$(field)$(type)/"
+        field = field * fdirection / norm(fdirection)
+    end
+    mkpath(folder)
+    chkp_file = folder*"D$(D)_chi$(χ)_tol$(tol)_maxiter$(maxiter)_miniter$(miniter).jld2"
+    if isfile(chkp_file)
+        bulk = load(chkp_file)["bcipeps"]
+        verbose && println("load BCiPEPS from $chkp_file")
+    else
+        bulk = rand(ComplexF64,D,D,D,D,4,2)
+        verbose && println("random initial BCiPEPS $chkp_file")
+    end
+    bulk /= norm(bulk)
+    key = (folder, model, field, atype, D, χ, tol, maxiter, miniter)
+    return bulk, key
+end
 
-    bulk, key = init_ipeps(model, fdirection, field; folder = folder, atype = atype, D=D, χ=χ, tol=tol, maxiter=maxiter, miniter=miniter)
+model = K_J_Γ_Γ′(-1.0, -0.1, 0.3, -0.02)
+for field in 0.79
+    folder = "./../../../../data/xyzhang/ADBCVUMPS/K_J_Γ_Γ′_1x2/"
+    fdirection, atype, D, χ, tol, maxiter, miniter = [1.0,1.0,0.825221], CuArray, 4, 80, 1e-10, 10, 2
+
+    bulk, key = init_ipeps_type(model, fdirection, field, ""; folder = folder, atype = atype, D=D, χ=χ, tol=tol, maxiter=maxiter, miniter=miniter)
     folder, model, field, atype, D, χ, tol, maxiter, miniter = key
 
     x = 80

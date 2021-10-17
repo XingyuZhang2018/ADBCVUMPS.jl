@@ -28,7 +28,7 @@ function parse_commandline()
         "--opiter"
             help = "iterition for optimise"
             arg_type = Int
-            default = 1000
+            default = 200
         "--f_tol"
             help = "tol error for optimise"
             arg_type = Float64
@@ -65,6 +65,10 @@ function parse_commandline()
             help = "folder for output"
             arg_type = String
             default = "./data/"
+        "--type"
+            help = "initial type "
+            arg_type = String
+            default = ""
     end
 
     return parse_args(s)
@@ -86,7 +90,8 @@ function main()
     opiter = parsed_args["opiter"]
     f_tol = parsed_args["f_tol"]
     folder = parsed_args["folder"]
-    bulk, key = init_ipeps(K_J_Γ_Γ′(K,J,Γ,Γ′), [1.0,1.0,1.0], field; folder = folder, atype = CuArray, D=D, χ=χ, tol=tol, maxiter=maxiter, miniter=miniter)
+    type = parsed_args["type"]
+    bulk, key = init_ipeps(K_J_Γ_Γ′(K,J,Γ,Γ′), [1.0,1.0,0.825221], field; folder = folder, type = type, atype = CuArray, D=D, χ=χ, tol=tol, maxiter=maxiter, miniter=miniter)
     optimiseipeps(bulk, key; f_tol = f_tol, opiter = opiter, verbose = true)
 end
 
