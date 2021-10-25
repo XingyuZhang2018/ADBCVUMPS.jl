@@ -41,9 +41,9 @@ end
 
 function observable(model, fdirection, field, type, folder, D, χ, tol, maxiter, miniter)
     if field == 0.0
-        observable_log = folder*"$(model)/observable.log"
+        observable_log = folder*"$(model)/D$(D)_χ$(χ)_observable.log"
     else
-        observable_log = folder*"$(model)_field$(fdirection)_$(field)$(type)/observable.log"
+        observable_log = folder*"$(model)_field$(fdirection)_$(field)$(type)/D$(D)_χ$(χ)_observable.log"
     end
     if isfile(observable_log)
         println("load observable from $(observable_log)")
@@ -181,51 +181,51 @@ function deriv_y(x,y)
 end
 
 Random.seed!(100)
-folder, D, χ, tol, maxiter, miniter = "./../../../../data/xyzhang/ADBCVUMPS/K_J_Γ_Γ′_1x2/", 4, 80, 1e-10, 10, 2
-f = 0.01:0.02:1.17
+folder, D, χ, tol, maxiter, miniter = "./../../../../data/xyzhang/ADBCVUMPS/K_J_Γ_Γ′_1x2/", 4, 80, 1e-10, 10, 5
+f = 0.01:0.01:0.8
 # f = 0.0:0.01:0.03
-fdirection = [1.0, 1.0, 0.825221]
-model = K_J_Γ_Γ′(-1.0, -0.1, 0.3, -0.02)
+fdirection = [1.0, 1.0, 0.985263]
+# 0.963424
+# 0.825221
 type = "_random"
 # Γ = 0.3
 field, mag, ferro, stripy, zigzag, Neel, E, ΔE, Cross = [], [], [], [], [], [], [], [], []
 for x in f
     @show x
+    model = K_J_Γ_Γ′(-1.0, -0.1, 0.3, -0.02)
     if x == 0.0
         tfolder = folder*"$(model)/"
     else
-    #     if x > 0.12
-            tfolder = folder*"$(model)_field$(fdirection)_$(x)$(type)/"
+        # if x > 0.13
+        #     type = "_random"
         # else
-        #     tfolder = folder*"$(model)_field$(fdirection)_$(x)/"
+        #     type = "_zigzag"
         # end
-    end
-    if isdir(tfolder)
-        # if x > 0.12
+        # type = ""
+        tfolder = folder*"$(model)_field$(fdirection)_$(x)$(type)/"
+        if isdir(tfolder)
             y1, y2, y3, y4, y5, y6, y7, y8 = observable(model, fdirection, x, "$(type)", folder, D, χ, tol, maxiter, miniter)
-        # else
-            # y1, y2, y3, y4, y5, y6, y7, y8 = observable(model, fdirection, x, "", folder, D, χ, tol, maxiter, miniter)
-        # end
-        field = [field; x]
-        mag = [mag; y1]
-        ferro = [ferro; y2]
-        stripy = [stripy; y3]
-        zigzag = [zigzag; y4]
-        Neel = [Neel; y5]
-        E = [E; y6]
-        ΔE = [ΔE; y7]
-        Cross = [Cross; y8]
+            field = [field; x]
+            mag = [mag; y1]
+            ferro = [ferro; y2]
+            stripy = [stripy; y3]
+            zigzag = [zigzag; y4]
+            Neel = [Neel; y5]
+            E = [E; y6]
+            ΔE = [ΔE; y7]
+            Cross = [Cross; y8]
+        end
     end
 end
 
-magplot = plot()
-plot!(magplot, field, mag, shape = :auto, title = "mag-h", label = "mag D = $(D)", lw = 2)
-plot!(magplot, field, ferro, shape = :auto, label = "ferro D = $(D)", lw = 2)
-plot!(magplot, field, stripy, shape = :auto, label = "stripy D = $(D)", lw = 2)
-plot!(magplot, field, Neel, shape = :auto, label = "Neel D = $(D)", lw = 2)
-plot!(magplot, field, zigzag, shape = :auto, label = "zigzag D = $(D)",legend = :outertop, xlabel = "h", ylabel = "Order Parameters", lw = 2)
-# dferro = deriv_y(field, ferro)
-# plot!(magplot, field, dferro, shape = :auto, label = "dferro D = $(D)", lw = 2)
+# magplot = plot()
+# plot!(magplot, field, mag, shape = :auto, title = "mag-h", label = "mag D = $(D)", lw = 2)
+# plot!(magplot, field, ferro, shape = :auto, label = "5° mag D = $(D)", lw = 2)
+# plot!(magplot, field, stripy, shape = :auto, label = "stripy D = $(D)", lw = 2)
+# plot!(magplot, field, Neel, shape = :auto, label = "Neel D = $(D)", lw = 2)
+# plot!(magplot, field, zigzag, shape = :auto, label = "zigzag D = $(D)",legend = :outertop, xlabel = "h", ylabel = "Order Parameters", lw = 2)
+# dferro = deriv_y(field, ferro)*1.5
+# plot!(magplot, field, dferro, shape = :auto, label = "5° ∂mag D = $(D)", lw = 2)
 # X,Y = read_xy(folder*"2021WeiLi-mag.log")
 # plot!(magplot, X/187.782, Y, shape = :auto, label = "2021WeiLi-mag", lw = 2, rightmargin = 2.5Plots.cm)
 # dmag = deriv_y(X/187.782, Y)/2
@@ -234,20 +234,25 @@ plot!(magplot, field, zigzag, shape = :auto, label = "zigzag D = $(D)",legend = 
 # # # plot!(magplot, X, Y, shape = :auto, label = "2019Gordon 5° dmag",legend = :topright, xlabel = "h", ylabel = "Order Parameters",rightmargin = 1.5Plots.cm, lw = 2)
 
 # # # ΔEplot = plot()
-ΔEplot = twinx()
-plot!(ΔEplot, field, abs.(ΔE), shape = :x, label = "ΔE D = $(D) ferro",legend = :topright, xlabel = "h", ylabel = "ΔE", lw = 2)
+# ΔEplot = twinx()
+# plot!(ΔEplot, field, abs.(ΔE), shape = :x, label = "ΔE D = $(D) ferro",legend = :topright, xlabel = "h", ylabel = "ΔE", lw = 2)
 
 # Eplot = plot()
-# plot!(Eplot, field, E, shape = :auto, label = "E 1x2 cell D = $(D) $(type)",legend = :topright, xlabel = "h", ylabel = "E", lw = 2)
+plot!(Eplot, field, E, shape = :auto, label = "E 1x2 cell D = $(D) $(type)",legend = :bottomleft, xlabel = "h", ylabel = "E", lw = 2)
+# dEplot = plot()
+# dEplot = twinx()
+# dE = deriv_y(field, E)
+# plot!(dEplot, field, dE, shape = :auto, color = :red, label = "∂E 1x2 cell D = $(D)",legend = :bottomright, xlabel = "Γ/|K|", ylabel = "∂E", lw = 2, rightmargin = 2.5Plots.cm)
+# ddEplot = twinx()
+# ddE = deriv_y(field, dE)
+# plot!(ddEplot, field, ddE, shape = :auto, label = "∂²E 1x2 cell D = $(D)", legend = :topright, xlabel = "Γ/|K|", ylabel = "∂²E", lw = 2)
 # X,Y1,Y2,Y3,Y4 = read_Exy(folder*"2021WeiLi-E.log")
 # plot!(Eplot, X*sqrt(3), Y1, shape = :auto, label = "2021WeiLi-fDMRG-YC4x12x2",legend = :topright, xlabel = "h", ylabel = "E", lw = 2)
 # plot!(Eplot, X*sqrt(3), Y2, shape = :auto, label = "2021WeiLi-fDMRG-YC6x12x2",legend = :topright, xlabel = "h", ylabel = "E", lw = 2)
 # plot!(Eplot, X*sqrt(3), Y3, shape = :auto, label = "2021WeiLi-iDMRG-YC4",legend = :topright, xlabel = "h", ylabel = "E", lw = 2)
-# plot!(Eplot, X*sqrt(3), Y4, shape = :auto, label = "2021WeiLi-iDMRG-YC6",legend = :topright, xlabel = "h", ylabel = "E", lw = 2)
-# # dEplot = twinx()
-# # dE = deriv_y(field, E)
-# # plot!(dEplot, field, dE, shape = :auto, label = "dE 1x2 cell D = $(D)",legend = :topright, xlabel = "f", ylabel = "dE", lw = 2)
-
+# plot!(Eplot, X*sqrt(3), Y4, shape = :auto, label = "2021WeiLi-iDMRG-YC6",legend = :bottomleft, xlabel = "h", ylabel = "E", lw = 2)
+# dE2 = deriv_y(X*sqrt(3), Y4)
+# plot!(dEplot, X*sqrt(3), dE2, shape = :auto,  color = :red, label = "2021WeiLi-iDMRG-YC6 dE",legend =:topright, xlabel = "h", ylabel = "dE", lw = 2)
 
 
 # # Crossplot = plot()
