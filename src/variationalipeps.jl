@@ -32,21 +32,21 @@ end
 optimise the follow two einsum contractions for the given `D` and `χ` which are used to calculate the energy of the 2-site hamiltonian:
 
 ```
-                                          a ────┬──c─ d     a ────┬──c─ d          
-a ────┬──c──d──┬──── f                    │     b     │     │     b     │  
-│     b        e     │                    ├─ e ─┼─ f ─┤     ├─ e ─┼─ f ─┤  
-├─ g ─┼─   h  ─┼─ i ─┤                    │     g     │     g     h     i 
-│     k        n     │                    ├─ h ─┼─ i ─┤     ├─ j ─┼─ k ─┤ 
-j ────┴──l──m──┴──── o                    │     k     │     │     m     │ 
-                                          j ────┴──l─ m     l ────┴──n─ o 
+                                        a ────┬──c─ d     a ────┬──c─ d          
+a ────┬──c ──┬──── f                    │     b     │     │     b     │  
+│     b      e     │                    ├─ e ─┼─ f ─┤     ├─ e ─┼─ f ─┤  
+├─ g ─┼─  h ─┼─ i ─┤                    │     g     │     g     h     i 
+│     k      n     │                    ├─ h ─┼─ i ─┤     ├─ j ─┼─ k ─┤ 
+j ────┴──l ──┴──── o                    │     k     │     │     m     │ 
+                                        j ────┴──l─ m     l ────┴──n─ o 
 ```
 where the central two block are six order tensor have extra bond `pq` and `rs`
 """
 function optcont(D::Int, χ::Int)
-    sd = Dict('a' => χ, 'b' => D^2,'c' => χ, 'd' => χ, 'e' => D^2, 'f' => χ, 'g' => D^2, 'h' => D^2, 'i' => D^2, 'j' => χ, 'k' => D^2, 'l' => χ, 'm' => χ, 'n' => D^2, 'o' => χ, 'p' => 4, 'q' => 4, 'r' => 4, 's' => 4)
-    oc1 = optimize_greedy(ein"agj,abc,gkhbpq,jkl,cd,lm,fio,def,hniers,mno -> pqrs", sd; method=MinSpaceDiff())
-    sd = Dict('a' => χ, 'b' => D^2, 'c' => χ, 'd' => χ, 'e' => D^2, 'f' => D^2, 'g' => χ, 'h' => D^2, 'i' => χ, 'j' => D^2, 'k' => D^2, 'l' => χ, 'm' => D^2, 'n' => χ, 'o' => χ, 'r' => 4, 's' => 4, 'p' => 4, 'q' => 4)
-    oc2 = optimize_greedy(ein"abc,cd,aeg,ehfbpq,dfi,gjl,jmkhrs,iko,lmn,no -> pqrs", sd; method=MinSpaceDiff())
+    sd = Dict('a' => χ, 'b' => D^2,'c' => χ, 'e' => D^2, 'f' => χ, 'g' => D^2, 'h' => D^2, 'i' => D^2, 'j' => χ, 'k' => D^2, 'l' => χ, 'n' => D^2, 'o' => χ, 'p' => 4, 'q' => 4, 'r' => 4, 's' => 4)
+    oc1 = optimize_greedy(ein"agj,abc,gkhbpq,jkl,fio,cef,hniers,lno -> pqrs", sd; method=MinSpaceDiff())
+    sd = Dict('a' => χ, 'b' => D^2, 'c' => χ, 'e' => D^2, 'f' => D^2, 'g' => χ, 'h' => D^2, 'i' => χ, 'j' => D^2, 'k' => D^2, 'l' => χ, 'm' => D^2, 'n' => χ, 'r' => 4, 's' => 4, 'p' => 4, 'q' => 4)
+    oc2 = optimize_greedy(ein"abc,aeg,ehfbpq,cfi,gjl,jmkhrs,ikn,lmn -> pqrs", sd; method=MinSpaceDiff())
     oc1, oc2
 end
 
@@ -62,6 +62,8 @@ function expectationvalue(h, ap, env, oc, key)
     folder, model, field, atype, D, χ, tol, maxiter, miniter = key
     oc1, oc2 = oc
     Ni,Nj = size(M)
+    ACu = reshape([ein"asc,cb -> asb"(ALu[i],Cu[i]) for i=1:Ni*Nj],Ni,Nj)    # ACu = ALCtoAC(ALu, Cu) is wrong because ALCtoAC is nograd
+    ACd = reshape([ein"asc,cb -> asb"(ALd[i],Cd[i]) for i=1:Ni*Nj],Ni,Nj)    # ACd = ALCtoAC(ALd, Cd) is wrong because ALCtoAC is nograd
     hx, hy, hz = h
     ap /= norm(ap)
     etol = 0
@@ -74,13 +76,13 @@ function expectationvalue(h, ap, env, oc, key)
     for j = 1:Nj, i = 1:Ni
         ir = Ni + 1 - i
         jr = j + 1 - (j==Nj) * Nj
-        lr = oc1(FL[i,j],ALu[i,j],ap[i,j],ALd[ir,j],Cu[i,j],Cd[ir,j],FR[i,jr],ARu[i,jr],ap[i,jr],ARd[ir,jr])
+        lr = oc1(FL[i,j],ACu[i,j],ap[i,j],ACd[ir,j],FR[i,jr],ARu[i,jr],ap[i,jr],ARd[ir,jr])
         ey = ein"pqrs, pqrs -> "(lr,hy)
         n = ein"pprr -> "(lr)
         println("hy = $(Array(ey)[]/Array(n)[])")
         etol += Array(ey)[]/Array(n)[]
 
-        lr2 = ein"(((((aeg,abc),cd),ehfbpq),ghi),ij),dfj -> pq"(FL[i,j],ALu[i,j],Cu[i,j],ap[i,j],ALd[ir,j],Cd[ir,j],FR[i,j])
+        lr2 = ein"(((aeg,abc),ehfbpq),ghi),cfi -> pq"(FL[i,j],ACu[i,j],ap[i,j],ACd[ir,j],FR[i,j])
         ex = ein"pq, pq -> "(lr2,hx)
         n = Array(ein"pp -> "(lr2))[]
         println("hx = $(Array(ex)[]/n)")
@@ -89,7 +91,7 @@ function expectationvalue(h, ap, env, oc, key)
     
     for j = 1:Nj, i = 1:Ni
         ir = i + 1 - Ni * (i==Ni)
-        lr3 = oc2(ALu[i,j],Cu[i,j],FLu[i,j],ap[i,j],FRu[i,j],FL[ir,j],ap[ir,j],FR[ir,j],ALd[i,j],Cd[i,j])
+        lr3 = oc2(ACu[i,j],FLu[i,j],ap[i,j],FRu[i,j],FL[ir,j],ap[ir,j],FR[ir,j],ACd[i,j])
         ez = ein"pqrs, pqrs -> "(lr3,hz)
         n = ein"pprr -> "(lr3)
         println("hz = $(Array(ez)[]/Array(n)[])") 
@@ -108,7 +110,7 @@ function expectationvalue(h, ap, env, oc, key)
         end
         for j = 1:Nj, i = 1:Ni
             ir = Ni + 1 - i
-            lr3 = ein"(((((aeg,abc),cd),ehfbpq),ghi),ij),dfj -> pq"(FL[i,j],ALu[i,j],Cu[i,j],ap[i,j],ALd[ir,j],Cd[ir,j],FR[i,j])
+            lr3 = ein"(((aeg,abc),ehfbpq),ghi),cfi -> pq"(FL[i,j],ACu[i,j],ap[i,j],ACd[ir,j],FR[i,j])
             Mx1 = ein"pq, pq -> "(lr3,atype(Sx1))
             Mx2 = ein"pq, pq -> "(lr3,atype(Sx2))
             My1 = ein"pq, pq -> "(lr3,atype(Sy1))
