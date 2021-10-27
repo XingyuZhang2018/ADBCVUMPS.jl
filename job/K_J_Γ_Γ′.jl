@@ -24,7 +24,7 @@ function parse_commandline()
         "--miniter"
             help = "min iterition for vumps"
             arg_type = Int
-            default = 2
+            default = 1
         "--opiter"
             help = "iterition for optimise"
             arg_type = Int
@@ -91,7 +91,7 @@ function main()
     f_tol = parsed_args["f_tol"]
     folder = parsed_args["folder"]
     type = parsed_args["type"]
-    bulk, key = init_ipeps(K_J_Γ_Γ′(K,J,Γ,Γ′), [1.0,1.0,0.963424], field; folder = folder, type = type, atype = CuArray, D=D, χ=χ, tol=tol, maxiter=maxiter, miniter=miniter)
+    bulk, key = init_ipeps(K_J_Γ_Γ′(K,J,Γ,Γ′), [1.0,1.0,1.0], field; folder = folder, type = type, atype = CuArray, D=D, χ=χ, tol=tol, maxiter=maxiter, miniter=miniter)
     optimiseipeps(bulk, key; f_tol = f_tol, opiter = opiter, verbose = true)
 end
 

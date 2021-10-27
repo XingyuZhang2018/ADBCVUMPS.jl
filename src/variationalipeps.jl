@@ -12,7 +12,7 @@ return the energy of the `bcipeps` 2-site hamiltonian `h` and calculated via a
 BCVUMPS with parameters `χ`, `tol` and `maxiter`.
 """
 function energy(h, bulk, oc, key; verbose = true, savefile = true)
-    folder, model, field, atype, D, χ, tol, maxiter, miniter = key
+    folder, _, _, _, D, χ, tol, maxiter, miniter = key
     # bcipeps = indexperm_symmetrize(bcipeps)  # NOTE: this is not good
     Ni,Nj = size(bulk)
     ap = [ein"abcdx,ijkly -> aibjckdlxy"(bulk[i], conj(bulk[i])) for i = 1:Ni*Nj]
@@ -32,13 +32,13 @@ end
 optimise the follow two einsum contractions for the given `D` and `χ` which are used to calculate the energy of the 2-site hamiltonian:
 
 ```
-                                        a ────┬──c─ d     a ────┬──c─ d          
-a ────┬──c ──┬──── f                    │     b     │     │     b     │  
-│     b      e     │                    ├─ e ─┼─ f ─┤     ├─ e ─┼─ f ─┤  
-├─ g ─┼─  h ─┼─ i ─┤                    │     g     │     g     h     i 
-│     k      n     │                    ├─ h ─┼─ i ─┤     ├─ j ─┼─ k ─┤ 
-j ────┴──l ──┴──── o                    │     k     │     │     m     │ 
-                                        j ────┴──l─ m     l ────┴──n─ o 
+                                            a ────┬──── c          
+a ────┬──c ──┬──── f                        │     b     │  
+│     b      e     │                        ├─ e ─┼─ f ─┤  
+├─ g ─┼─  h ─┼─ i ─┤                        g     h     i 
+│     k      n     │                        ├─ j ─┼─ k ─┤ 
+j ────┴──l ──┴──── o                        │     m     │ 
+                                            l ────┴──── n 
 ```
 where the central two block are six order tensor have extra bond `pq` and `rs`
 """
@@ -59,7 +59,7 @@ a `SquareBCVUMPSRuntime` `env`.
 """
 function expectationvalue(h, ap, env, oc, key)
     M, ALu, Cu, ARu, ALd, Cd, ARd, FL, FR, FLu, FRu = env
-    folder, model, field, atype, D, χ, tol, maxiter, miniter = key
+    _, _, field, atype, _, _, _, _, _ = key
     oc1, oc2 = oc
     Ni,Nj = size(M)
     ACu = reshape([ein"asc,cb -> asb"(ALu[i],Cu[i]) for i=1:Ni*Nj],Ni,Nj)    # ACu = ALCtoAC(ALu, Cu) is wrong because ALCtoAC is nograd
