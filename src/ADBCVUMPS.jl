@@ -1,20 +1,9 @@
 module ADBCVUMPS
 
-using Zygote: Random
 using Zygote
 using OMEinsum
-using BCVUMPS
-using BCVUMPS: HamiltonianModel
-using BCVUMPS: _mattype, _arraytype
-
-export num_grad
-export TFIsing, Heisenberg, Kitaev, Kitaev_Heisenberg, K_J_Γ_Γ′, K_Γ
-export hamiltonian, HamiltonianModel
-export init_ipeps, energy, optimiseipeps
 
 include("hamiltonianmodels.jl")
-include("autodiff.jl")
-include("bcipeps.jl")
 include("variationalipeps.jl")
 
 end

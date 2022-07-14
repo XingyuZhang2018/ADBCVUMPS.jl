@@ -1,7 +1,12 @@
+export TFIsing, Heisenberg, Kitaev, Kitaev_Heisenberg, K_J_Γ_Γ′, K_Γ
+export hamiltonian, HamiltonianModel
+
 const σx = ComplexF64[0 1; 1 0]
 const σy = ComplexF64[0 -1im; 1im 0]
 const σz = ComplexF64[1 0; 0 -1]
 const id2 = ComplexF64[1 0; 0 1]
+
+abstract type HamiltonianModel end
 
 @doc raw"
     hamiltonian(model<:HamiltonianModel)

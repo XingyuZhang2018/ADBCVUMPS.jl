@@ -1,9 +1,12 @@
-using BCVUMPS: bigleftenv, bigrightenv, ALCtoAC
+using FileIO
 using LinearAlgebra: I, norm
 using LineSearches
 using OMEinsum: get_size_dict, optimize_greedy,  MinSpaceDiff
 using Optim
 using TimerOutputs
+using VUMPS
+
+export init_ipeps, energy, optimiseipeps
 
 """
     energy(h, bcipeps; χ, tol, maxiter)
@@ -21,7 +24,7 @@ function energy(h, bulk, oc, key; verbose = true, savefile = true)
     a = [ein"ijklaa -> ijkl"(ap[i]) for i = 1:Ni*Nj]
     a = reshape(a, Ni, Nj)
 
-    env = obs_bcenv(a; χ = χ, tol = tol, maxiter = maxiter, miniter = miniter, verbose = verbose, savefile = savefile, folder = folder)
+    env = obs_env(a; χ = χ, tol = tol, maxiter = maxiter, miniter = miniter, verbose = verbose, savefile = savefile, infolder = folder, outfolder = folder)
     e = expectationvalue(h, ap, env, oc, key)
     return e
 end
@@ -62,8 +65,8 @@ function expectationvalue(h, ap, env, oc, key)
     _, _, field, atype, _, _, _, _, _ = key
     oc1, oc2 = oc
     Ni,Nj = size(M)
-    ACu = reshape([ein"asc,cb -> asb"(ALu[i],Cu[i]) for i=1:Ni*Nj],Ni,Nj)    # ACu = ALCtoAC(ALu, Cu) is wrong because ALCtoAC is nograd
-    ACd = reshape([ein"asc,cb -> asb"(ALd[i],Cd[i]) for i=1:Ni*Nj],Ni,Nj)    # ACd = ALCtoAC(ALd, Cd) is wrong because ALCtoAC is nograd
+    ACu = reshape([ein"asc,cb -> asb"(ALu[i],Cu[i]) for i=1:Ni*Nj],Ni,Nj)
+    ACd = reshape([ein"asc,cb -> asb"(ALd[i],Cd[i]) for i=1:Ni*Nj],Ni,Nj)
     hx, hy, hz = h
     ap /= norm(ap)
     etol = 0
